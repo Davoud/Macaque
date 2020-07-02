@@ -3,31 +3,32 @@
 open NUnit.Framework
 open FsUnit
 open Macaque
-open Macaque.LexerOp
+open Macaque.Tokens
 
- type ExpectedToken = { expectedType: string; expectedLiteral: string }    
+
+ type ExpectedToken = { Type: TokenType; Literal: string }    
     
  [<TestFixture>]    
  type Tests() =
     
     [<Test>]
     member this.TestNextToken() =
-        let input = "=+(),;"
+        let input = ",=+();"
         let tests = [|
-            { expectedType = Tokens.ASSIGN; expectedLiteral = "=" };    
-            { expectedType = Tokens.PLUS; expectedLiteral = "+" };
-            { expectedType = Tokens.LPAREN; expectedLiteral = "(" };
-            { expectedType = Tokens.RPAREN; expectedLiteral = ")" };
-            { expectedType = Tokens.COMMA; expectedLiteral = "," };
-            { expectedType = Tokens.SEMICOLON; expectedLiteral = ";" };
+            { Type = COMMA; Literal = "," };
+            { Type = ASSIGN; Literal = "=" };    
+            { Type = PLUS; Literal = "+" };
+            { Type = LPAREN; Literal = "(" };
+            { Type = RPAREN; Literal = ")" };
+            { Type = SEMICOLON; Literal = ";" };
         |]
         
-        let lexer = Lexer.New(input)
+        let lexer = Lexer(input)
         
-        tests |> Array.map(fun test -> 
-            let tok = lexer.NextToken()
-            tok.Type |> should equal test.expectedType 
-            tok.Literal |> should equal test.expectedLiteral
+        tests |> Array.map(fun expected ->             
+            let tok = lexer.NextToken()            
+            tok.Type |> should equal expected.Type
+            tok.Literal |> should equal expected.Literal
         ) |> ignore            
         
         

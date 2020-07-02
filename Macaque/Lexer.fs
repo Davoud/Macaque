@@ -2,31 +2,41 @@
 
 open Macaque.Tokens
 
-type Lexer = 
-    struct 
-       val input: string
-       val mutable position: int
-       val mutable readPosition: int
-       val mutable ch: char
-       new(input) = { input = input; position = 0; readPosition = 0; ch = (char)0 }
-       
-       member x.readChar(): Lexer = 
-        if x.readPosition >= x.input.Length then
-           x.ch <- (char)0
+type Lexer (input: string) as self = 
+
+   let mutable position: int = 0   
+   let mutable readPosition: int = 0
+   let mutable ch: char = '\000'        
+   
+   do
+    self.ReadChar()
+
+   member private this.ReadChar() =             
+        if readPosition >= input.Length then
+            ch <- '\000'
         else 
-           x.ch <- x.input.Chars(x.readPosition)
-        x.position <- x.readPosition
-        x.readPosition <- x.readPosition + 1
-        x
-    end
-
-module LexerOp =
-    type Lexer with
-        member x.NextToken(): Token =
-            new Token(ASSIGN, "=")
-
-        static member New(input: string) = Lexer(input).readChar()
+            ch <-  input.Chars(readPosition)
             
+        position <-  readPosition
+        readPosition <-  readPosition + 1            
+
+    override this.ToString() = sprintf "Lexer[Pos: %i, Read: %i, Ch: %O]"  position  readPosition ch
+               
+    member this.NextToken() = 
+        let token = 
+            match ch with
+            | '=' -> Token(ASSIGN, "=")
+            | ';' -> Token(SEMICOLON, ";")
+            | '+' -> Token(PLUS, "+")
+            | '(' -> Token(LPAREN, "(")
+            | ')' -> Token(RPAREN, ")")
+            | ',' -> Token(COMMA, ",")
+            | '\000' -> Token(EOF, "END OF FILE")
+            | _   -> Token(ILLEGAL, "ILLEGAL")  
+        this.ReadChar()
+        token   
+    
+
 
         
 

@@ -1,99 +1,44 @@
 ﻿namespace Macaque
 
 module Tokens = 
+             
+    type TokenType =
+        | ILLEGAL 
+        | EOF       // End of File
+        | IDENT     // add, fooBar, x, y, ...
+        | INT       // 12323
+        | ASSIGN    // =
+        | PLUS      // +
+        | MINUS     // -
+        | BANG      // !
+        | ASTRISK   // *
+        | SLASH     // /    
+        | LT        // <
+        | GT        // >
+        | EQ        // ==   
+        | NOT_EQ    // !=                      
+        | COMMA     // ,            
+        | SEMICOLON // ;
+        | LPAREN    // (
+        | RPAREN    // )
+        | LBRACE    // {
+        | RBRACE    // }
+        | LET       // Let
+        | FUNCTION  // fn
+        | TRUE      // true
+        | FALSE     // false
+        | IF        // if
+        | ELSE      // else           
+        | RETURN    // return
 
-    type TokenType = string
-    
     type Token =
-        struct
-            val Type:TokenType
-            val Literal:string
-            new(type', literal) = { Type = type'; Literal = literal }
-        end   
-
-    [<Literal>] 
-    let ILLEGAL = "ILLEGAL"
-
-    [<Literal>]
-    let EOF = "EOF"
-
-    [<Literal>]
-    let IDENT = "IDENT" // add, foobar, x, y, ...
-
-    [<Literal>]
-    let INT = "INT"   // 1343456
-
-    // Operators
-    [<Literal>]
-    let ASSIGN = "="
-
-    [<Literal>]
-    let PLUS = "+"
-
-    [<Literal>]
-    let MINUS = "-"
-
-    [<Literal>]
-    let BANG = "!"
-
-    [<Literal>]
-    let ASTERISK = "*"
-
-    [<Literal>]
-    let SLASH = "/"
-
-    [<Literal>]
-    let LT = "<"
-
-    [<Literal>]
-    let GT = ">"
-
-    [<Literal>]
-    let EQ = "=="
-
-    [<Literal>]
-    let NOT_EQ = "!="
-
-    // Delimiters
-    [<Literal>]
-    let COMMA = ","
-
-    [<Literal>]
-    let SEMICOLON = ";"
-
-    [<Literal>]
-    let LPAREN = "("
-
-    [<Literal>]
-    let RPAREN = ")"
-
-    [<Literal>]
-    let LBRACE = "{"
-
-    [<Literal>]
-    let RBRACE = "}"
-
-    // Keywords
-    [<Literal>]
-    let FUNCTION = "FUNCTION"
-
-    [<Literal>]
-    let LET = "LET"
-
-    [<Literal>]
-    let TRUE = "TRUE"
-
-    [<Literal>]
-    let FALSE = "FALSE"
-
-    [<Literal>]
-    let IF = "IF"
-
-    [<Literal>]
-    let ELSE = "ELSE"
-
-    [<Literal>]
-    let RETURN = "RETURN"
+           struct
+               val Type:TokenType
+               val Literal:string
+               new(type', literal) = { Type = type'; Literal = literal }
+               override x.ToString() = sprintf "Token %A('%s')" x.Type x.Literal
+               member x.IsNotEOF(): bool = not (x.Type.Equals(EOF))
+           end  
 
     let keywords = Map [
         ("fn", FUNCTION);    
@@ -104,9 +49,9 @@ module Tokens =
         ("else", ELSE);
         ("return", RETURN)]
 
-    let lookupIdent ident =
-        match keywords.TryFind ident with
-        | Some(tok) -> tok
+    let lookupIdent identifier =
+        match keywords.TryFind identifier with
+        | Some(token) -> token
         | None -> IDENT
         
         
