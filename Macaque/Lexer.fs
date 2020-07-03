@@ -1,52 +1,70 @@
 ﻿namespace Macaque
 
 open Macaque.Tokens
+open System
 
 type Lexer (input: string) as self = 
 
-   let mutable position: int = 0   
-   let mutable readPosition: int = 0
-   let mutable ch: char = '\000'        
+   let mutable _position: int = 0   
+   let mutable _readPosition: int = 0
+   let mutable _ch: char = '\000'        
+   
+   let IsLetter (ch:char) = Char.IsLetter(ch) || ch = '_'
+   
+   let ReadIndentifier(): string = 
+        let position = _position
+        while IsLetter _ch do
+            self.ReadChar()
+        input.[position.._position - 1]
+
+   let SkepWhiteSpece() = while Char.IsWhiteSpace _ch do self.ReadChar()            
+
+   let ReadNumber() = 
+        let position = _position
+        while Char.IsDigit _ch do
+            self.ReadChar()
+        input.[position.._position - 1]
+
+   let GetAndRead (tokenType:TokenType) (literal:string) = 
+        let token = Token(tokenType, literal)
+        self.ReadChar()
+        token
    
    do
     self.ReadChar()
 
    member private this.ReadChar() =             
-        if readPosition >= input.Length then
-            ch <- '\000'
+        if _readPosition >= input.Length then
+            _ch <- '\000'
         else 
-            ch <-  input.Chars(readPosition)
+            _ch <-  input.[_readPosition]
             
-        position <-  readPosition
-        readPosition <-  readPosition + 1            
+        _position <-  _readPosition
+        _readPosition <-  _readPosition + 1            
 
-    override this.ToString() = sprintf "Lexer[Pos: %i, Read: %i, Ch: %O]"  position  readPosition ch
-               
-    member this.NextToken() = 
-        let token = 
-            match ch with
-            | '=' -> Token(ASSIGN, "=")
-            | ';' -> Token(SEMICOLON, ";")
-            | '+' -> Token(PLUS, "+")
-            | '(' -> Token(LPAREN, "(")
-            | ')' -> Token(RPAREN, ")")
-            | ',' -> Token(COMMA, ",")
-            | '\000' -> Token(EOF, "END OF FILE")
-            | _   -> Token(ILLEGAL, "ILLEGAL")  
-        this.ReadChar()
-        token   
+    override this.ToString() = sprintf "Lexer[Pos: %i, Read: %i, Ch: %O]"  _position  _readPosition _ch
     
+    
+         
+    member this.NextToken() = 
+        SkepWhiteSpece()
+        match _ch with 
+            | '=' -> GetAndRead ASSIGN "="             
+            | ';' -> GetAndRead SEMICOLON ";"
+            | '+' -> GetAndRead PLUS "+"
+            | '(' -> GetAndRead LPAREN "("
+            | ')' -> GetAndRead RPAREN ")"
+            | ',' -> GetAndRead COMMA ","
+            | '{' -> GetAndRead LBRACE "{"
+            | '}' -> GetAndRead RBRACE "}"
+            | '\000' -> GetAndRead EOF ""
 
+            | c when IsLetter(c) -> let ident = ReadIndentifier()                        
+                                    Token(lookupIdent(ident), ident)
 
-        
+            | c when Char.IsDigit(c) -> Token(INT, ReadNumber())
 
-
-
-            
-
+            | _ -> Token(ILLEGAL, _ch.ToString())
                 
-
-     
-
-
-
+        
+    
