@@ -1,23 +1,15 @@
 ﻿namespace Macaque
 
 open System
-open Tokens
+open Macaque.Repl
 
 
 module Main = 
-     
     
-            
-
     [<EntryPoint>]
     let main argv =
-        let lex = Lexer("+=()")
-        
-        printfn "%A" (lex.NextToken())
-        printfn "%A" (lex.NextToken())
-        printfn "%A" (lex.NextToken())
-       
-
-        0 // return an integer exit code
+        Repl.start()
+      
+        //0 // return an integer exit code
 
     

@@ -37,7 +37,7 @@ module Tokens =
                val Literal:string
                new(type', literal) = { Type = type'; Literal = literal }
                override x.ToString() = sprintf "Token %A('%s')" x.Type x.Literal
-               member x.IsNotEOF(): bool = not (x.Type.Equals(EOF))
+               member x.IsNotEOF(): bool = x.Type <> EOF
            end  
 
     let keywords = Map [
