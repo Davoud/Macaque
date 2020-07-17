@@ -3,7 +3,7 @@
 open Macaque.Tokens
 open System
 
-type Lexer (input: string) as self = 
+type Lexer (input: string) as self   = 
 
    let mutable _position: int = 0   
    let mutable _readPosition: int = 0
@@ -32,15 +32,18 @@ type Lexer (input: string) as self =
 
    let NextIs (nextChar:char) = if _readPosition >= input.Length then '\000' = nextChar else input.[_readPosition] = nextChar
 
+   let rec Iterate(lex: Lexer) = seq {
+        match lex.NextToken():Token with
+        | tok when tok.Type = EOF -> yield tok
+        | tok -> yield tok
+                 yield! (Iterate lex)
+   }
+
    do
     self.ReadChar()
 
    member private this.ReadChar() =             
-        if _readPosition >= input.Length then
-            _ch <- '\000'
-        else 
-            _ch <-  input.[_readPosition]
-            
+        _ch <- if _readPosition >= input.Length then '\000' else  input.[_readPosition]            
         _position <-  _readPosition
         _readPosition <-  _readPosition + 1            
 
@@ -71,6 +74,11 @@ type Lexer (input: string) as self =
             | c when Char.IsDigit(c) -> Token(INT, ReadNumber())
 
             | _ -> Read ILLEGAL (_ch.ToString())
-                
         
+    member this.IterateOver() = Iterate this
+    
+
+    
+        
+    
     

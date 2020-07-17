@@ -6,27 +6,21 @@ open Macaque
 
 module Repl =
     let prompt = ">> "
+    
+    let printTokens (lex:Lexer) = 
+        for token in lex.IterateOver() do
+            printfn "%A" token
+    
+    let rec nextLine (readline:unit -> string) =
+        match readline() with
+        | line when line = ";;" -> 0      
+        | line -> printTokens (Lexer line) 
+                  printf "%s" prompt
+                  nextLine (readline)
 
-    let rec interpret (lex:Lexer): unit =
-        match lex.NextToken() with
-        | tok when tok.Type <> EOF -> printfn "%A" tok
-                                      interpret lex
-        | _ -> printfn ""
-
-    let rec next (line:string) =
-        match line with
-        | x when x = ";;" -> 0
-        | x when x = "" -> 
-            Console.Write prompt
-            next (Console.ReadLine())
-
-        | _ -> 
-            interpret (Lexer line)
-            Console.Write prompt
-            next (Console.ReadLine())
-            
-
-    let start() = next ""
+    let start() = 
+        printf "%s" prompt
+        nextLine Console.ReadLine
         
 
     
