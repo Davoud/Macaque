@@ -24,7 +24,8 @@ open Macaque.Parsing
          let y = 10;
          let foobar = 838383;"
        
-    let program = Parser.New(Lexer input).ParseProgram()
+    //let program = Parser.New(Lexer input).ParseProgram()
+    let program = Parser2(Lexer input).ParseProgram()
 
     program.IsSome |> should equal true
     program.Value.Statements.Count |> should equal 3

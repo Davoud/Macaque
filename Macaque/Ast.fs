@@ -2,6 +2,7 @@
 
 open Macaque.Tokens
 open System.Text
+open System.Collections.Generic
 
 module Ast =
     
@@ -16,7 +17,7 @@ module Ast =
     
 
  type Program() =
-    let statements: System.Collections.Generic.List<Statement> = new System.Collections.Generic.List<Statement>()  
+    let statements = new List<Statement>()  
     member this.Statements = statements    
     member this.Append (s: Statement) = statements.Add s
     member this.TokenLiteral() =
@@ -30,10 +31,11 @@ module Ast =
         member this.TokenLiteral() = this.Token.Literal
 
  type LetStatement (token: Token, name: Identifier, value: Expression option) =
+
     member this.Token = token
     member this.Name = name
     member this.Value = value
-    
+        
     interface Statement with
         member this.TokenLiteral() = this.Token.Literal
 
