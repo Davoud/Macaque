@@ -43,14 +43,18 @@ module Ast =
         let append (value: string) (buffer: StringBuilder) = buffer.Append value   
         new StringBuilder() 
             |> append (sprintf "%s " ((this :> Statement).TokenLiteral())) 
-            |> append (sprintf "%A" this.Name) 
-            |> append " = "
-            |> append (match this.Value with | Some(exp) -> (sprintf "%A" exp) | None -> "")
-            |> append ";"
+            |> append (sprintf "%A" this.Name) |> append " = "
+            |> append (match this.Value with | Some(exp) -> (sprintf "%A" exp) | None -> "") |> append ";"
             |> sprintf "%A"
         
         
-    
+ type ReturnStatement (token: Token, value: Expression option) =    
+    member this.Token = token
+    member this.Value = value
+    interface Statement with 
+        member this.TokenLiteral() = this.Token.Literal
+    override this.ToString() = (sprintf "%s " ((this :> Statement).TokenLiteral())) + (match this.Value with | Some(exp) -> (sprintf "%A" exp) | None -> "")
+        
         
 
 

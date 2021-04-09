@@ -11,29 +11,43 @@ module Parsing =
 
     type Parser2 (lexer: Lexer) =                
         
-        member this.Seek (p: Position) (tokenType: TokenType) = 
-                   if p.CurToken.Type = tokenType || p.CurToken.Type = EOF then p 
-                   else this.Seek (this.NextToken p) (tokenType)
-
-        member _.Errors = new List<string>()
+        let errors = new List<string>()
         
-        member _.NextToken(p: Position) = {CurToken = p.PeekToken; PeekToken = lexer.NextToken() }            
-        
-        member this.ExpectPeek (p: Position) (tokenType: TokenType): Position option = 
-               if p.PeekToken.Type = tokenType then Some(this.NextToken p) else None            
+        let nextToken p: Position = { CurToken = p.PeekToken; PeekToken = lexer.NextToken() }
 
+        let rec seek (p: Position)(tokenType: TokenType) =
+            if p.CurToken.Type = tokenType || p.CurToken.Type = EOF then p 
+            else seek (nextToken p) (tokenType)         
+        
+        let expectError (p: Position)(tType: TokenType) =
+            errors.Add $"expected next token to be {tType}, got {p.PeekToken.Type} instead!"
+
+        let expectPeek (p: Position) (tokenType: TokenType): Position option = 
+            if p.PeekToken.Type = tokenType then
+                 Some(nextToken p) 
+            else 
+                 expectError p tokenType
+                 None    
+
+        member this.Errors = errors
+                   
         member this.ParseLetStatement(p: Position): (Position*LetStatement option) = 
-            match this.ExpectPeek p IDENT with
+            match expectPeek p IDENT with
                 | None -> (p, None)
-                | Some(ident) -> 
-                    match this.ExpectPeek ident ASSIGN with 
-                        | None -> (ident, None)
-                        | Some(assign) -> 
-                            (this.Seek assign SEMICOLON, Some(LetStatement(p.CurToken, Identifier(ident.CurToken, ident.CurToken.Literal), None)))
-                                       
+                | Some(identPosition) -> 
+                    match expectPeek identPosition ASSIGN with 
+                        | None -> (identPosition, None)
+                        | Some(assignPosition) -> 
+                            (seek assignPosition SEMICOLON, Some(LetStatement(p.CurToken, Identifier(identPosition.CurToken, identPosition.CurToken.Literal), None)))
+        
+        member this.ParseReturnStatement (p: Position): (Position*ReturnStatement option) = 
+            (seek (nextToken p) SEMICOLON, Some(ReturnStatement(p.CurToken, None)))
+
+            
         member this.ParseStatement(p: Position): (Position*Statement option) =
                   match p.CurToken.Type with
-                      | LET -> (match this.ParseLetStatement (p) with | (n, Some(s)) -> (n, Some(s :> Statement)) | (_, None) -> (p, None))
+                      | LET -> (match this.ParseLetStatement p with | (n, Some(s)) -> (n, Some(s :> Statement)) | (_, None) -> (p, None))
+                      | RETURN -> (match this.ParseReturnStatement p with | (n, Some(s)) -> (n, Some(s :> Statement)) | (_, None) -> (p, None))
                       | _ -> (p, None)
 
         member this.ParseProgram(): Ast.Program option =
@@ -42,7 +56,7 @@ module Parsing =
                 if p.CurToken.Type <> EOF then
                     let (next, statement) = this.ParseStatement p
                     if statement.IsSome then program.Append statement.Value
-                    parse (this.NextToken next)           
+                    parse (nextToken next)           
             parse {CurToken = lexer.NextToken(); PeekToken= lexer.NextToken()} 
             Some(program)
 
