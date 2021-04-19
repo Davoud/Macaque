@@ -8,6 +8,7 @@ module Ast =
     
  type Node =
     abstract member TokenLiteral: unit -> string
+    abstract member String: unit -> string
     
  type Statement =
     inherit Node 
@@ -15,47 +16,46 @@ module Ast =
  type Expression =
     inherit Node
     
-
- type Program() =
-    let statements = new List<Statement>()  
+ type Program() =    
+    let mutable statements: Statement list = []
     member this.Statements = statements    
-    member this.Append (s: Statement) = statements.Add s
-    member this.TokenLiteral() =
-        if this.Statements.Count > 0 then this.Statements.[0].TokenLiteral() else ""
-
+    member this.Append (s: Statement) = statements <- statements @ [s]
+    member this.TokenLiteral() = match statements with head :: _ -> head.TokenLiteral() | [] -> ""    
+    member this.String() = statements |> List.fold (fun acc elem -> (elem :> Node).String() + "\n" + acc) ""                 
+        
  type Identifier (token: Token, value: string) =   
     member this.Token = token
     member this.Value = value        
     override this.ToString() = value
     interface Expression with 
         member this.TokenLiteral() = this.Token.Literal
+        member this.String() = this.ToString()
 
  type LetStatement (token: Token, name: Identifier, value: Expression option) =
-
     member this.Token = token
     member this.Name = name
-    member this.Value = value
-        
+    member this.Value = value        
     interface Statement with
         member this.TokenLiteral() = this.Token.Literal
-
+        member this.String() = this.ToString()
     override this.ToString() = 
-        let append (value: string) (buffer: StringBuilder) = buffer.Append value   
-        new StringBuilder() 
-            |> append (sprintf "%s " ((this :> Statement).TokenLiteral())) 
-            |> append (sprintf "%A" this.Name) |> append " = "
-            |> append (match this.Value with | Some(exp) -> (sprintf "%A" exp) | None -> "") |> append ";"
-            |> sprintf "%A"
-        
-        
+        let exp = match this.Value with Some(exp) -> (sprintf "%A" exp) | None -> ""
+        sprintf "%s %A = %s;" ((this :> Statement).TokenLiteral()) this.Name exp        
+                
  type ReturnStatement (token: Token, value: Expression option) =    
     member this.Token = token
-    member this.Value = value
+    member this.ReturnValue = value
+    override this.ToString() = sprintf "%s %s;" ((this :> Statement).TokenLiteral()) (match this.ReturnValue with | Some(exp) -> (sprintf "%A" exp) | None -> "")
     interface Statement with 
         member this.TokenLiteral() = this.Token.Literal
-    override this.ToString() = (sprintf "%s " ((this :> Statement).TokenLiteral())) + (match this.Value with | Some(exp) -> (sprintf "%A" exp) | None -> "")
+        member this.String() = this.ToString()
         
-        
+  type ExpressionStatement (token: Token, expression: Expression option) =
+    member this.Token = token
+    member this.Expression = expression
+    interface Statement with 
+           member this.TokenLiteral() = this.Token.Literal
+           member this.String() = match this.Expression with | Some(exp) -> exp.String() | None -> ""
 
 
 

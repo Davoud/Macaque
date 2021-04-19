@@ -27,7 +27,7 @@ open Macaque.Parsing
     let program = Parser2(Lexer input).ParseProgram()
 
     program.IsSome |> should equal true
-    program.Value.Statements.Count |> should equal 3
+    program.Value.Statements.Length |> should equal 3
 
     let expectedIdentifiers = [| "x"; "y"; "foobar" |]
     for i in 0 .. expectedIdentifiers.Length - 1 do
@@ -42,7 +42,7 @@ open Macaque.Parsing
 
     let parser = Parser2(Lexer input)
     let program = parser.ParseProgram()
-    parser.Errors.Count |> should equal 3
+    parser.Errors.Length |> should equal 3
     parser.Errors.[0] |> should equal $"expected next token to be IDENT, got INT instead!"
     parser.Errors.[1] |> should equal $"expected next token to be ASSIGN, got INT instead!"
     parser.Errors.[2] |> should equal $"expected next token to be IDENT, got ASSIGN instead!"
@@ -58,11 +58,19 @@ open Macaque.Parsing
     let program = parser.ParseProgram()
 
     program.IsSome |> should equal true
-    program.Value.Statements.Count |> should equal 3
+    program.Value.Statements.Length |> should equal 3
 
     for statement in program.Value.Statements do
         statement |> should be instanceOfType<ReturnStatement>
         statement.TokenLiteral() |> should equal "return"
         
-
+  [<Test>]
+  member this.TestStrings() =
+    let letStatement = 
+        LetStatement(
+            Token(TokenType.LET, "let"), 
+            Identifier(Token(TokenType.IDENT, "myVar"), "myVar"),
+            Some(Identifier(Token(TokenType.IDENT, "anotherVar"), "anotherVar") :> Expression))
+    
+    (letStatement :> Statement).String() |> should equal "let myVar = anotherVar;"
  
