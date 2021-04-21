@@ -37,6 +37,7 @@ module Parsing =
     type Parser (lexer: Lexer) =                
         
         let mutable errors: string list = []
+       
         let mutable prefixParseFns: Map<TokenType,PrefixParseFn> = Map.empty
         let mutable infixParseFns: Map<TokenType,InfixParseFn> = Map.empty
 
@@ -58,10 +59,20 @@ module Parsing =
                
         let registerPrefix (tokenType: TokenType) (fn: PrefixParseFn) = prefixParseFns <- prefixParseFns.Add(tokenType, fn)
         let registerInfix (tokenType: TokenType) (fn: InfixParseFn) = infixParseFns <- infixParseFns.Add(tokenType, fn)
-
+                
         let parseIdentifier(p: Position): Expression = Identifier(p.CurToken, p.CurToken.Literal) :> Expression
 
+        let parseIntegerLiteral (p: Position): Expression =
+            match System.Int64.TryParse p.CurToken.Literal with
+            | true,value -> IntegerLiteral(p.CurToken, int value) :> Expression
+            | _ -> 
+                errors <- errors @ [sprintf "could not parse %s as integer" (p.CurToken.Literal)]
+                NullExpression() :> Expression
+                
+              
+
         do registerPrefix (TokenType.IDENT) (parseIdentifier)
+        do registerPrefix (TokenType.INT) (parseIntegerLiteral)
 
         member this.Errors = errors
                    

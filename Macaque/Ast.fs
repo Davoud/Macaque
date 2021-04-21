@@ -68,5 +68,10 @@ module Ast =
     interface Expression with
         member this.TokenLiteral() = this.Token.Literal
         member this.String() = this.Value.ToString()
-
+  
+  
+  type NullExpression() =
+    interface Expression with
+        member this.TokenLiteral() = ""
+        member this.String() = "NULL EXPRESSION"
 
