@@ -22,7 +22,8 @@ module Ast =
     member this.Append (s: Statement) = statements <- statements @ [s]
     member this.TokenLiteral() = match statements with head :: _ -> head.TokenLiteral() | [] -> ""    
     member this.String() = statements |> List.fold (fun acc elem -> (elem :> Node).String() + "\n" + acc) ""                 
-        
+ 
+ [<Struct>]
  type Identifier (token: Token, value: string) =   
     member this.Token = token
     member this.Value = value        
@@ -31,6 +32,7 @@ module Ast =
         member this.TokenLiteral() = this.Token.Literal
         member this.String() = this.ToString()
 
+ [<Struct>]
  type LetStatement (token: Token, name: Identifier, value: Expression option) =
     member this.Token = token
     member this.Name = name
@@ -41,7 +43,8 @@ module Ast =
     override this.ToString() = 
         let exp = match this.Value with Some(exp) -> (sprintf "%A" exp) | None -> ""
         sprintf "%s %A = %s;" ((this :> Statement).TokenLiteral()) this.Name exp        
-                
+
+ [<Struct>]                
  type ReturnStatement (token: Token, value: Expression option) =    
     member this.Token = token
     member this.ReturnValue = value
@@ -49,13 +52,21 @@ module Ast =
     interface Statement with 
         member this.TokenLiteral() = this.Token.Literal
         member this.String() = this.ToString()
-        
-  type ExpressionStatement (token: Token, expression: Expression option) =
+  
+  [<Struct>]
+  type ExpressionStatement (token: Token, expression: Expression) =
     member this.Token = token
     member this.Expression = expression
     interface Statement with 
            member this.TokenLiteral() = this.Token.Literal
-           member this.String() = match this.Expression with | Some(exp) -> exp.String() | None -> ""
+           member this.String() = this.Expression.String()
 
+  [<Struct>]
+  type IntegerLiteral (token: Token, value: int) = 
+    member this.Token = token
+    member this.Value = value
+    interface Expression with
+        member this.TokenLiteral() = this.Token.Literal
+        member this.String() = this.Value.ToString()
 
 

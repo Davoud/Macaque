@@ -24,7 +24,7 @@ open Macaque.Parsing
          let y = 10;
          let foobar = 838383;"
            
-    let program = Parser2(Lexer input).ParseProgram()
+    let program = Parser(Lexer input).ParseProgram()
 
     program.IsSome |> should equal true
     program.Value.Statements.Length |> should equal 3
@@ -33,14 +33,14 @@ open Macaque.Parsing
     for i in 0 .. expectedIdentifiers.Length - 1 do
         this.TestLetStatement program.Value.Statements.[i] expectedIdentifiers.[i]
 
-  [<Test>]
+  //[<Test>]
   member this.TestLetStatementErrors() =
     let input = 
         "let 5;
          let y 10;
          let = 12;"
 
-    let parser = Parser2(Lexer input)
+    let parser = Parser(Lexer input)
     let program = parser.ParseProgram()
     parser.Errors.Length |> should equal 3
     parser.Errors.[0] |> should equal $"expected next token to be IDENT, got INT instead!"
@@ -54,7 +54,7 @@ open Macaque.Parsing
          return 10;
          return 99912;"
 
-    let parser = Parser2(Lexer input)
+    let parser = Parser(Lexer input)
     let program = parser.ParseProgram()
 
     program.IsSome |> should equal true
@@ -73,4 +73,38 @@ open Macaque.Parsing
             Some(Identifier(Token(TokenType.IDENT, "anotherVar"), "anotherVar") :> Expression))
     
     (letStatement :> Statement).String() |> should equal "let myVar = anotherVar;"
+   
+  [<Test>]
+  member this.TestIdentifierExpression() =
+      let input = "foobar;"
+      let p = Parser(Lexer input)
+      let program = p.ParseProgram()
+      program.IsSome |> should equal true
+      program.Value.Statements.Length |> should equal 1
+      
+      let stmt = program.Value.Statements.Head
+      stmt |> should be instanceOfType<ExpressionStatement>
+      
+      let ident = (stmt :?> ExpressionStatement).Expression
+      ident |> should be instanceOfType<Identifier>
+      ident.TokenLiteral() |> should equal "foobar"
+      (ident :?> Identifier).Value |> should equal "foobar"
+
+  [<Test>]
+  member this.TestIntegerLiteralExpression() =
+    let input = "5;"
+    let p = Parser(Lexer input)
+    let program = p.ParseProgram()
+    program.IsSome |> should equal true
+    program.Value.Statements.Length |> should equal 1
+
+    let stmt = program.Value.Statements.Head
+    stmt |> should be instanceOfType<ExpressionStatement>
+
+    let literal = (stmt :?> ExpressionStatement).Expression
+    literal |> should be instanceOfType<IntegerLiteral>
+
+    (literal :?> IntegerLiteral).Value |> should equal 5
+    literal.TokenLiteral() |> should equal "5"
+
  
