@@ -9,7 +9,19 @@ open Macaque.Parsing
 
  [<TestFixture>]    
  type Tests() =
- 
+  
+  let parse (input: string) (expectedNumStatments: int): Program =
+    let program = Parser(Lexer input).ParseProgram()
+    program.IsSome |> should equal true
+    program.Value.Statements.Length |> should equal expectedNumStatments
+    program.Value
+
+  let parseSingle input = parse input 1
+
+  member _.asInstanceOf<'T>(o: obj): 'T =
+    o |> should be instanceOfType<'T>
+    o :?> 'T
+  
   member this.TestLetStatement (s: Statement) (name: string) = 
     s.TokenLiteral() |> should equal "let"
     s |> should be instanceOfType<LetStatement>
@@ -24,14 +36,10 @@ open Macaque.Parsing
          let y = 10;
          let foobar = 838383;"
            
-    let program = Parser(Lexer input).ParseProgram()
-
-    program.IsSome |> should equal true
-    program.Value.Statements.Length |> should equal 3
-
+    let program = parse input 3    
     let expectedIdentifiers = [| "x"; "y"; "foobar" |]
     for i in 0 .. expectedIdentifiers.Length - 1 do
-        this.TestLetStatement program.Value.Statements.[i] expectedIdentifiers.[i]
+        this.TestLetStatement program.Statements.[i] expectedIdentifiers.[i]
 
   //[<Test>]
   member this.TestLetStatementErrors() =
@@ -53,14 +61,8 @@ open Macaque.Parsing
         "return 5;
          return 10;
          return 99912;"
-
-    let parser = Parser(Lexer input)
-    let program = parser.ParseProgram()
-
-    program.IsSome |> should equal true
-    program.Value.Statements.Length |> should equal 3
-
-    for statement in program.Value.Statements do
+         
+    for statement in  (parse input 3).Statements do
         statement |> should be instanceOfType<ReturnStatement>
         statement.TokenLiteral() |> should equal "return"
         
@@ -75,36 +77,31 @@ open Macaque.Parsing
     (letStatement :> Statement).String() |> should equal "let myVar = anotherVar;"
    
   [<Test>]
-  member this.TestIdentifierExpression() =
-      let input = "foobar;"
-      let p = Parser(Lexer input)
-      let program = p.ParseProgram()
-      program.IsSome |> should equal true
-      program.Value.Statements.Length |> should equal 1
-      
-      let stmt = program.Value.Statements.Head
-      stmt |> should be instanceOfType<ExpressionStatement>
-      
-      let ident = (stmt :?> ExpressionStatement).Expression
-      ident |> should be instanceOfType<Identifier>
-      ident.TokenLiteral() |> should equal "foobar"
-      (ident :?> Identifier).Value |> should equal "foobar"
+  member this.TestIdentifierExpression() =                    
+      let stmt = this.asInstanceOf<ExpressionStatement> (parseSingle "foobar;").Statements.Head
+      stmt.Expression.TokenLiteral() |> should equal "foobar"
+      let ident = this.asInstanceOf<Identifier> stmt.Expression      
+      ident.Value |> should equal "foobar"
 
   [<Test>]
-  member this.TestIntegerLiteralExpression() =
-    let input = "5;"
-    let p = Parser(Lexer input)
-    let program = p.ParseProgram()
-    program.IsSome |> should equal true
-    program.Value.Statements.Length |> should equal 1
+  member this.TestIntegerLiteralExpression() =    
+    let stmt = this.asInstanceOf<ExpressionStatement> (parseSingle "5;").Statements.Head
+    let literal = this.asInstanceOf<IntegerLiteral>(stmt.Expression)    
+    literal.Value |> should equal 5
+    stmt.Expression.TokenLiteral() |> should equal "5"
 
-    let stmt = program.Value.Statements.Head
-    stmt |> should be instanceOfType<ExpressionStatement>
-
-    let literal = (stmt :?> ExpressionStatement).Expression
-    literal |> should be instanceOfType<IntegerLiteral>
-
-    (literal :?> IntegerLiteral).Value |> should equal 5
-    literal.TokenLiteral() |> should equal "5"
-
- 
+  [<Test>] 
+  member this.TestParsingPrefixExpressions() =   
+   ["!5;", "!", 5; "-15;", "-", 15] |> List.iter (fun (input, operator, integerValue) ->         
+        let stmt = this.asInstanceOf<ExpressionStatement> (parseSingle input).Statements.Head
+        let exp = this.asInstanceOf<PrefixExpression>(stmt.Expression)
+        exp.Opertor |> should equal operator                
+        this.testIntegerLiteral exp.Right integerValue)
+   
+  member this.testIntegerLiteral (il: Expression) (value: int): unit =
+    let integ = this.asInstanceOf<IntegerLiteral>()
+    integ.Value |> should equal value
+    il.TokenLiteral() |> should equal (sprintf "%i" value)
+    
+    
+    

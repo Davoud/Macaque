@@ -26,99 +26,89 @@ module Parsing =
 
     [<Literal>] 
     let CALL = 7us          // myFunction(X)
-    
 
-    [<Struct>]
-    type Position = { CurToken: Token; PeekToken: Token } 
-
-    type PrefixParseFn = Position -> Expression
-     and InfixParseFn = Position * Expression -> Expression
-
-    type Parser (lexer: Lexer) =                
+    type PrefixParseFn = unit -> Expression
+    type InfixParseFn = Expression -> Expression
         
+    type Parser (lexer: Lexer) =                
         let mutable errors: string list = []
+        
+        let mutable curToken: Token = lexer.NextToken()
+        let mutable peekToken: Token = lexer.NextToken()
        
         let mutable prefixParseFns: Map<TokenType,PrefixParseFn> = Map.empty
-        let mutable infixParseFns: Map<TokenType,InfixParseFn> = Map.empty
+        let mutable infixParseFns:  Map<TokenType,InfixParseFn>  = Map.empty
+    
+        let nextToken(): unit = 
+            curToken <- peekToken
+            peekToken <- lexer.NextToken()
+                         
+        let expectError (tType: TokenType) =
+             errors <- errors @ [$"expected next token to be {tType}, got {peekToken.Type} instead!"]
 
-        let nextToken p: Position = { CurToken = p.PeekToken; PeekToken = lexer.NextToken() }
+        let expectPeek (tokenType: TokenType): bool = 
+            match peekToken.Type = tokenType with 
+                | true -> nextToken(); true                    
+                | false -> expectError tokenType; false
+                                     
+        let peekTokenIs (tokenType: TokenType) = peekToken.Type = tokenType
 
-        let rec seek (p: Position)(tokenType: TokenType) =
-            if p.CurToken.Type = tokenType || p.CurToken.Type = EOF then p 
-            else seek (nextToken p) (tokenType)         
-        
-        let expectError (p: Position)(tType: TokenType) =
-             errors <- errors @ [$"expected next token to be {tType}, got {p.PeekToken.Type} instead!"]
-
-        let expectPeek (p: Position) (tokenType: TokenType): Position option = 
-            if p.PeekToken.Type = tokenType then
-                 Some(nextToken p) 
-            else 
-                 expectError p tokenType
-                 None
-               
         let registerPrefix (tokenType: TokenType) (fn: PrefixParseFn) = prefixParseFns <- prefixParseFns.Add(tokenType, fn)
         let registerInfix (tokenType: TokenType) (fn: InfixParseFn) = infixParseFns <- infixParseFns.Add(tokenType, fn)
                 
-        let parseIdentifier(p: Position): Expression = Identifier(p.CurToken, p.CurToken.Literal) :> Expression
+        let parseIdentifier(): Expression = Identifier(curToken, curToken.Literal) :> Expression
 
-        let parseIntegerLiteral (p: Position): Expression =
-            match System.Int64.TryParse p.CurToken.Literal with
-            | true,value -> IntegerLiteral(p.CurToken, int value) :> Expression
+        let parseIntegerLiteral(): Expression =
+            match System.Int64.TryParse curToken.Literal with
+            | true, value -> IntegerLiteral(curToken, int value) :> Expression
             | _ -> 
-                errors <- errors @ [sprintf "could not parse %s as integer" (p.CurToken.Literal)]
-                NullExpression() :> Expression
-                
-              
+                errors <- errors @ [sprintf "could not parse %s as integer" (curToken.Literal)]
+                NullExpression() :> Expression                              
 
         do registerPrefix (TokenType.IDENT) (parseIdentifier)
-        do registerPrefix (TokenType.INT) (parseIntegerLiteral)
+        do registerPrefix (TokenType.INT)   (parseIntegerLiteral)
 
         member this.Errors = errors
                    
-        member this.ParseLetStatement(p: Position): (Position*LetStatement option) = 
-            match expectPeek p IDENT with
-                | None -> (p, None)
-                | Some(identPosition) -> 
-                    match expectPeek identPosition ASSIGN with 
-                        | None -> (identPosition, None)
-                        | Some(assignPosition) -> 
-                            (seek assignPosition SEMICOLON, Some(LetStatement(p.CurToken, Identifier(identPosition.CurToken, identPosition.CurToken.Literal), None)))
+        member this.ParseLetStatement(): LetStatement option = 
+            let currentToken = curToken
+            if expectPeek IDENT then 
+                let ident = Identifier(curToken, curToken.Literal)
+                if expectPeek ASSIGN then
+                    nextToken()
+                    if peekTokenIs SEMICOLON then nextToken()
+                    LetStatement(currentToken, ident, None) |> Some
+                else None
+            else None
         
-        member this.ParseReturnStatement (p: Position): (Position*ReturnStatement option) = 
-            (seek (nextToken p) SEMICOLON, Some(ReturnStatement(p.CurToken, None)))
+        member this.ParseReturnStatement(): ReturnStatement option = 
+            let currentToken = curToken
+            nextToken() 
+            if peekTokenIs SEMICOLON then nextToken()
+            ReturnStatement(currentToken, None) |> Some
 
-        member this.ParseExpression (p: Position) (precdenct: uint16): Expression option =
-            match prefixParseFns.TryFind p.CurToken.Type with
-                | Some(prefix) -> Some(prefix p)
+        member this.ParseExpression (precdence: uint16): Expression option =
+            match prefixParseFns.TryFind curToken.Type with
+                | Some(prefix) -> Some(prefix())
                 | None -> None
     
-        member this.ParseExpressionStatement (p: Position): Position * ExpressionStatement option = 
-            let expression = this.ParseExpression p LOWEST
-            (seek (nextToken p) SEMICOLON, Some(ExpressionStatement(p.CurToken, expression.Value)))
+        member this.ParseExpressionStatement(): ExpressionStatement option = 
+            let currentToken = curToken
+            let expression = this.ParseExpression LOWEST
+            if peekTokenIs SEMICOLON then nextToken()
+            ExpressionStatement(currentToken, expression.Value) |> Some
             
-        member this.ParseStatement(p: Position): (Position*Statement option) =
-                  match p.CurToken.Type with
-                      | LET -> (match this.ParseLetStatement p with 
-                            | (n, Some(s)) -> (n, Some(s :> Statement)) 
-                            | (_, None) -> (p, None))
-
-                      | RETURN -> (match this.ParseReturnStatement p with 
-                            | (n, Some(s)) -> (n, Some(s :> Statement)) 
-                            | (_, None) -> (p, None))
-
-                      | _ -> (match this.ParseExpressionStatement p with 
-                                | (n, Some(s)) -> (n, Some(s :> Statement)) 
-                                | (_, None) -> (p, None))
+        member this.ParseStatement(): Statement option =
+                  match curToken.Type with
+                      | LET     -> match this.ParseLetStatement()        with | Some(s) -> s :> Statement |> Some | None -> None
+                      | RETURN  -> match this.ParseReturnStatement()     with | Some(s) -> s :> Statement |> Some | None -> None
+                      | _       -> match this.ParseExpressionStatement() with | Some(s) -> s :> Statement |> Some | None -> None
 
         member this.ParseProgram(): Ast.Program option =
-            let program = Program();
-            let rec parse(p: Position) =
-                if p.CurToken.Type <> EOF then
-                    let (next, statement) = this.ParseStatement p
-                    if statement.IsSome then program.Append statement.Value
-                    parse (nextToken next)           
-            parse {CurToken = lexer.NextToken(); PeekToken= lexer.NextToken()} 
+            let program = Program();            
+            while curToken.Type <> EOF do
+                match this.ParseStatement() with | Some(statement) -> program.Append statement | _ -> ()                    
+                nextToken()            
             Some(program)
 
    

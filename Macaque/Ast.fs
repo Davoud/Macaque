@@ -69,6 +69,14 @@ module Ast =
         member this.TokenLiteral() = this.Token.Literal
         member this.String() = this.Value.ToString()
   
+  [<Struct>]
+  type PrefixExpression (token: Token, operator: string, right: Expression) =
+    member this.Token = token
+    member this.Opertor = operator
+    member this.Right = right
+    interface Expression with
+        member this.TokenLiteral() = this.Token.Literal
+        member this.String() = sprintf "( %s %s )" this.Opertor (this.Right.String())
   
   type NullExpression() =
     interface Expression with
