@@ -27,6 +27,8 @@ module Parsing =
     [<Literal>] 
     let CALL = 7us          // myFunction(X)
 
+    type Precedence = LOWEST | EQUALS | LESSGREATER | SUM | PRODUCT | PREFIX | CALL
+
     type PrefixParseFn = unit -> Expression
     type InfixParseFn = Expression -> Expression
         
@@ -39,6 +41,16 @@ module Parsing =
         let mutable prefixParseFns: Map<TokenType,PrefixParseFn> = Map.empty
         let mutable infixParseFns:  Map<TokenType,InfixParseFn>  = Map.empty
     
+        let precedences = Map [
+            EQ,         EQUALS;
+            NOT_EQ,     EQUALS;
+            LT,         LESSGREATER;
+            GT,         LESSGREATER;
+            PLUS,       SUM; 
+            MINUS,      SUM;
+            ASTRISK,    PRODUCT;
+            SLASH,      PRODUCT;]
+        
         let nextToken(): unit = 
             curToken <- peekToken
             peekToken <- lexer.NextToken()
@@ -48,13 +60,41 @@ module Parsing =
 
         let expectPeek (tokenType: TokenType): bool = 
             match peekToken.Type = tokenType with 
-                | true -> nextToken(); true                    
-                | false -> expectError tokenType; false
+            | true -> nextToken(); true                    
+            | false -> expectError tokenType; false
                                      
         let peekTokenIs (tokenType: TokenType) = peekToken.Type = tokenType
 
-        let registerPrefix (tokenType: TokenType) (fn: PrefixParseFn) = prefixParseFns <- prefixParseFns.Add(tokenType, fn)
-        let registerInfix (tokenType: TokenType) (fn: InfixParseFn) = infixParseFns <- infixParseFns.Add(tokenType, fn)
+        let peekPrecedenc(): Precedence = precedences.GetValueOrDefault(peekToken.Type, LOWEST)
+        let curPrecedence(): Precedence = precedences.GetValueOrDefault(curToken.Type, LOWEST)
+
+        let rec seek (precedence: Precedence) (left: Expression): Expression =
+            if not (peekTokenIs SEMICOLON) && precedence < peekPrecedenc() then
+                match infixParseFns.TryFind peekToken.Type with
+                | Some(infix) -> nextToken(); seek precedence (infix left)
+                | None -> left
+            else
+                left
+
+        let parseExpression (precdence: Precedence): Expression =
+            match prefixParseFns.TryFind curToken.Type with
+            | Some(prefix) -> seek precdence (prefix())                      
+            | None -> 
+                errors <- errors @ [sprintf "no prefix parse function for %A found" curToken.Type]
+                NullExpression.Instance
+                         
+
+        let parseInfixExpression (left: Expression): Expression = 
+            let currentToken = curToken
+            let precedence = curPrecedence()
+            nextToken()
+            InfíxExpression (currentToken, left, currentToken.Literal, parseExpression precedence) :> Expression
+
+        let registerPrefix (tokenTypes: TokenType list) (fn: PrefixParseFn) =            
+            tokenTypes |> List.iter (fun tokenType -> prefixParseFns <- prefixParseFns.Add(tokenType, fn))
+        
+        let registerInfix (tokenTypes: TokenType list) (fn: InfixParseFn) = 
+             tokenTypes |> List.iter (fun tokenType -> infixParseFns <- infixParseFns.Add(tokenType, fn))
                 
         let parseIdentifier(): Expression = Identifier(curToken, curToken.Literal) :> Expression
 
@@ -63,10 +103,18 @@ module Parsing =
             | true, value -> IntegerLiteral(curToken, int value) :> Expression
             | _ -> 
                 errors <- errors @ [sprintf "could not parse %s as integer" (curToken.Literal)]
-                NullExpression() :> Expression                              
-
-        do registerPrefix (TokenType.IDENT) (parseIdentifier)
-        do registerPrefix (TokenType.INT)   (parseIntegerLiteral)
+                NullExpression.Instance                            
+       
+        let parsePrefixExpression(): Expression =
+            let currentToken = curToken
+            nextToken()           
+            PrefixExpression(currentToken, currentToken.Literal, parseExpression PREFIX) :> Expression
+                
+        do parseIdentifier       |> registerPrefix [IDENT]
+        do parseIntegerLiteral   |> registerPrefix [INT]
+        do parsePrefixExpression |> registerPrefix [BANG; MINUS]
+        do parseInfixExpression  |> registerInfix  [PLUS; MINUS; SLASH; ASTRISK; EQ; NOT_EQ; LT; GT]
+               
 
         member this.Errors = errors
                    
@@ -86,17 +134,16 @@ module Parsing =
             nextToken() 
             if peekTokenIs SEMICOLON then nextToken()
             ReturnStatement(currentToken, None) |> Some
-
-        member this.ParseExpression (precdence: uint16): Expression option =
-            match prefixParseFns.TryFind curToken.Type with
-                | Some(prefix) -> Some(prefix())
-                | None -> None
-    
+           
         member this.ParseExpressionStatement(): ExpressionStatement option = 
-            let currentToken = curToken
-            let expression = this.ParseExpression LOWEST
-            if peekTokenIs SEMICOLON then nextToken()
-            ExpressionStatement(currentToken, expression.Value) |> Some
+            let currentToken = curToken           
+            let expression = parseExpression LOWEST  
+            if(expression <> NullExpression.Instance) then
+                if peekTokenIs SEMICOLON then nextToken()
+                ExpressionStatement(currentToken, expression) |> Some
+            else
+                None
+            
             
         member this.ParseStatement(): Statement option =
                   match curToken.Type with

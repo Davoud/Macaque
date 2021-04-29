@@ -21,8 +21,15 @@ module Ast =
     member this.Statements = statements    
     member this.Append (s: Statement) = statements <- statements @ [s]
     member this.TokenLiteral() = match statements with head :: _ -> head.TokenLiteral() | [] -> ""    
-    member this.String() = statements |> List.fold (fun acc elem -> (elem :> Node).String() + "\n" + acc) ""                 
+    member this.String() = statements |> List.fold (fun acc elem -> acc + (elem :> Node).String()) ""                 
  
+ type NullExpression() =
+    static let instance = NullExpression() :> Expression
+    static member Instance = instance
+    interface Expression with
+         member this.TokenLiteral() = failwith "Null Expression has no token!"
+         member this.String() = "<NULL EXPRESSION>"
+
  [<Struct>]
  type Identifier (token: Token, value: string) =   
     member this.Token = token
@@ -72,14 +79,20 @@ module Ast =
   [<Struct>]
   type PrefixExpression (token: Token, operator: string, right: Expression) =
     member this.Token = token
-    member this.Opertor = operator
+    member this.Operator = operator
     member this.Right = right
     interface Expression with
         member this.TokenLiteral() = this.Token.Literal
-        member this.String() = sprintf "( %s %s )" this.Opertor (this.Right.String())
+        member this.String() = sprintf "(%s%s)" this.Operator (this.Right.String())
   
-  type NullExpression() =
+  [<Struct>]
+  type InfíxExpression (token: Token, left: Expression, operator: string, right: Expression) =
+    member this.Token = token
+    member this.Operator = operator
+    member this.Left = left 
+    member this.Right = right 
     interface Expression with
-        member this.TokenLiteral() = ""
-        member this.String() = "NULL EXPRESSION"
+        member this.TokenLiteral() = this.Token.Literal
+        member this.String() = sprintf "(%s %s %s)"  (this.Left.String()) this.Operator (this.Right.String())
 
+    

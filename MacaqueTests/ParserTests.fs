@@ -10,14 +10,21 @@ open Macaque.Parsing
  [<TestFixture>]    
  type Tests() =
   
+  let rec printErrors (erros: string list) =
+    match erros with 
+        | head :: tail -> 
+            printf "Error: %s" head
+            printErrors tail
+        | [] -> ()
+              
   let parse (input: string) (expectedNumStatments: int): Program =
-    let program = Parser(Lexer input).ParseProgram()
-    program.IsSome |> should equal true
-    program.Value.Statements.Length |> should equal expectedNumStatments
+    let parser = Parser(Lexer input)
+    let program = parser.ParseProgram()
+    printErrors parser.Errors
+    program.IsSome |> should equal true    
+    if expectedNumStatments > 0 then program.Value.Statements.Length |> should equal expectedNumStatments    
     program.Value
-
-  let parseSingle input = parse input 1
-
+  
   member _.asInstanceOf<'T>(o: obj): 'T =
     o |> should be instanceOfType<'T>
     o :?> 'T
@@ -78,30 +85,79 @@ open Macaque.Parsing
    
   [<Test>]
   member this.TestIdentifierExpression() =                    
-      let stmt = this.asInstanceOf<ExpressionStatement> (parseSingle "foobar;").Statements.Head
+      let stmt = this.asInstanceOf<ExpressionStatement> (parse "foobar;" 1).Statements.Head
       stmt.Expression.TokenLiteral() |> should equal "foobar"
       let ident = this.asInstanceOf<Identifier> stmt.Expression      
       ident.Value |> should equal "foobar"
 
   [<Test>]
   member this.TestIntegerLiteralExpression() =    
-    let stmt = this.asInstanceOf<ExpressionStatement> (parseSingle "5;").Statements.Head
-    let literal = this.asInstanceOf<IntegerLiteral>(stmt.Expression)    
+    let stmt = (parse "5;" 1).Statements.Head |> this.asInstanceOf<ExpressionStatement> 
+    let literal = stmt.Expression |> this.asInstanceOf<IntegerLiteral>    
     literal.Value |> should equal 5
     stmt.Expression.TokenLiteral() |> should equal "5"
 
   [<Test>] 
   member this.TestParsingPrefixExpressions() =   
    ["!5;", "!", 5; "-15;", "-", 15] |> List.iter (fun (input, operator, integerValue) ->         
-        let stmt = this.asInstanceOf<ExpressionStatement> (parseSingle input).Statements.Head
-        let exp = this.asInstanceOf<PrefixExpression>(stmt.Expression)
-        exp.Opertor |> should equal operator                
+        let stmt = (parse input 1).Statements.Head |> this.asInstanceOf<ExpressionStatement> 
+        let exp =  stmt.Expression |> this.asInstanceOf<PrefixExpression>
+        exp.Operator |> should equal operator
         this.testIntegerLiteral exp.Right integerValue)
    
   member this.testIntegerLiteral (il: Expression) (value: int): unit =
-    let integ = this.asInstanceOf<IntegerLiteral>()
+    let integ = il |> this.asInstanceOf<IntegerLiteral>
     integ.Value |> should equal value
     il.TokenLiteral() |> should equal (sprintf "%i" value)
     
+  [<Test>]
+  member this.TestParsingInfixExpressions() =
+    [| 
+       "5 + 5;",  5, "+",  5; 
+       "5 - 5;",  5, "-",  5; 
+       "5 * 5;",  5, "*",  5; 
+       "5 / 5;",  5, "/",  5; 
+       "5 > 5;",  5, ">",  5; 
+       "5 < 5;",  5, "<",  5; 
+       "5 == 5;", 5, "==", 5; 
+       "5 != 5;", 5, "!=", 5; 
+     |] 
+     |> Array.iter (fun (input, leftValue, operator, rightValue) -> 
+            let program = parse input 1      
+            let stmt = program.Statements.Head |> this.asInstanceOf<ExpressionStatement> 
+            let exp = stmt.Expression |> this.asInstanceOf<InfíxExpression>
+            this.testIntegerLiteral exp.Left leftValue
+            exp.Operator |> should equal operator
+            this.testIntegerLiteral exp.Right rightValue)
     
     
+  [<Test>]
+  member this.TestOperatorPrecedenceParsing() =        
+        [| 
+           "-a * b",    "((-a) * b)";
+           
+           "!-a",       "(!(-a))";
+           
+           "a + b + c", "((a + b) + c)";
+           
+           "a + b - c", "((a + b) - c)";
+           
+           "a * b * c", "((a * b) * c)";
+           
+           "a * b / c", "((a * b) / c)";
+           
+           "a + b / c", "(a + (b / c))";
+           
+           "a + b * c + d / e - f", "(((a + (b * c)) + (d / e)) - f)";
+           
+           "3 + 4; -5 * 5", "(3 + 4)((-5) * 5)";
+           
+           "5 > 4 == 3 < 4", "((5 > 4) == (3 < 4))";
+           
+           "5 < 4 != 3 > 4", "((5 < 4) != (3 > 4))";
+           
+           "3 + 4 * 5 == 3 * 1 + 4 * 5", "((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))";
+           
+           "3 + 4 / 5 != 3 * 1 + 4 / 5", "((3 + (4 / 5)) != ((3 * 1) + (4 / 5)))";
+        |]
+        |> Array.iter (fun (input, exprected) -> (parse input -1).String() |> should equal exprected)
