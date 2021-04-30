@@ -121,40 +121,9 @@ module Parsing =
             let exp = parseExpression LOWEST
             if expectPeek RPAREN then exp else nilExpression
 
-        let parseBlockStatement(): BlockStatement = 
-            let ct = curToken
-            let mutable statement: Statement list = []
-            nextToken()
-            BlockStatement(ct, statement) 
-
-
-        let parseIfExpression(): Expression =
-            let ct = curToken
-            if expectPeek LPAREN then
-                nextToken()
-                let condition = parseExpression LOWEST
-                if expectPeek RPAREN && expectPeek LBRACE then
-                    IfExpression(ct, condition, parseBlockStatement(), None) :> Expression
-                else
-                    nilExpression
-            else
-                nilExpression
+        
                     
-
-
-            
-        do parseIdentifier        |> registerPrefix [IDENT]
-        do parseIntegerLiteral    |> registerPrefix [INT]
-        do parsePrefixExpression  |> registerPrefix [BANG; MINUS]
-        do parseInfixExpression   |> registerInfix  [PLUS; MINUS; SLASH; ASTRISK; EQ; NOT_EQ; LT; GT]               
-        do parseBooleanExpression |> registerPrefix [TRUE; FALSE]
-        do parseGroupedExpression |> registerPrefix [LPAREN]
-        
-        member this.Errors = errors
-        
-        
-         
-        member this.ParseLetStatement(): LetStatement option = 
+        let parseLetStatement(): LetStatement option = 
             let currentToken = curToken
             if expectPeek IDENT then 
                 let ident = Identifier(curToken, curToken.Literal)          
@@ -165,13 +134,13 @@ module Parsing =
                 else None
             else None
         
-        member this.ParseReturnStatement(): ReturnStatement option = 
+        let parseReturnStatement(): ReturnStatement option = 
             let currentToken = curToken
             nextToken() 
             if peekTokenIs SEMICOLON then nextToken()
             ReturnStatement(currentToken, None) |> Some
            
-        member this.ParseExpressionStatement(): ExpressionStatement option = 
+        let parseExpressionStatement(): ExpressionStatement option = 
             let currentToken = curToken           
             let expression = parseExpression LOWEST  
             if(expression <> nilExpression) then
@@ -179,17 +148,52 @@ module Parsing =
                 ExpressionStatement(currentToken, expression) |> Some
             else
                 None
-                        
-        member this.ParseStatement(): Statement option =
-                  match curToken.Type with
-                      | LET     -> match this.ParseLetStatement()        with | Some(s) -> s :> Statement |> Some | None -> None
-                      | RETURN  -> match this.ParseReturnStatement()     with | Some(s) -> s :> Statement |> Some | None -> None
-                      | _       -> match this.ParseExpressionStatement() with | Some(s) -> s :> Statement |> Some | None -> None
 
+        let parseStatement(): Statement option =
+            match curToken.Type with
+                | LET     -> match parseLetStatement()        with | Some(s) -> s :> Statement |> Some | None -> None
+                | RETURN  -> match parseReturnStatement()     with | Some(s) -> s :> Statement |> Some | None -> None
+                | _       -> match parseExpressionStatement() with | Some(s) -> s :> Statement |> Some | None -> None
+            
+        let parseBlockStatement(): BlockStatement = 
+            let ct = curToken
+            let mutable statements: Statement list = []
+            nextToken()
+            while curToken.Type <> RBRACE && curToken.Type <> EOF do
+                match parseStatement() with Some(s) -> statements <- s :: statements | None -> ()
+                nextToken()
+            BlockStatement(ct, statements |> List.rev)
+
+        let parseElseExpression(): BlockStatement option =
+            if not (peekTokenIs ELSE) then None
+            else
+                nextToken()
+                if expectPeek RBRACE then None else parseBlockStatement() |> Some
+            
+        let parseIfExpression(): Expression =
+            let ct = curToken
+            if expectPeek LPAREN then
+                nextToken()
+                let condition = parseExpression LOWEST
+                if expectPeek RPAREN && expectPeek LBRACE then
+                    IfExpression(ct, condition, parseBlockStatement(), parseElseExpression()) :> Expression else nilExpression
+            else
+                nilExpression
+
+        do parseIdentifier        |> registerPrefix [IDENT]
+        do parseIntegerLiteral    |> registerPrefix [INT]
+        do parsePrefixExpression  |> registerPrefix [BANG; MINUS]
+        do parseInfixExpression   |> registerInfix  [PLUS; MINUS; SLASH; ASTRISK; EQ; NOT_EQ; LT; GT]               
+        do parseBooleanExpression |> registerPrefix [TRUE; FALSE]
+        do parseGroupedExpression |> registerPrefix [LPAREN]
+        do parseIfExpression      |> registerPrefix [IF]              
+                                                       
+        member this.Errors = errors
+       
         member this.ParseProgram(): Ast.Program option =
             let program = Program();            
             while curToken.Type <> EOF do
-                match this.ParseStatement() with | Some(statement) -> program.Append statement | _ -> ()                    
+                match parseStatement() with | Some(statement) -> program.Append statement | _ -> ()                    
                 nextToken()            
             Some(program)
 
