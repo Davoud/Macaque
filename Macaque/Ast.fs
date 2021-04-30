@@ -23,13 +23,6 @@ module Ast =
     member this.TokenLiteral() = match statements with head :: _ -> head.TokenLiteral() | [] -> ""    
     member this.String() = statements |> List.fold (fun acc elem -> acc + (elem :> Node).String()) ""                 
  
- type NullExpression() =
-    static let instance = NullExpression() :> Expression
-    static member Instance = instance
-    interface Expression with
-         member this.TokenLiteral() = failwith "Null Expression has no token!"
-         member this.String() = "<NULL EXPRESSION>"
-
  [<Struct>]
  type Identifier (token: Token, value: string) =   
     member this.Token = token
@@ -64,6 +57,7 @@ module Ast =
   type ExpressionStatement (token: Token, expression: Expression) =
     member this.Token = token
     member this.Expression = expression
+    override this.ToString() = (this :> Statement).ToString()
     interface Statement with 
            member this.TokenLiteral() = this.Token.Literal
            member this.String() = this.Expression.String()
@@ -72,6 +66,7 @@ module Ast =
   type IntegerLiteral (token: Token, value: int) = 
     member this.Token = token
     member this.Value = value
+    override this.ToString() = (this :> Expression).ToString()
     interface Expression with
         member this.TokenLiteral() = this.Token.Literal
         member this.String() = this.Value.ToString()
@@ -81,9 +76,10 @@ module Ast =
     member this.Token = token
     member this.Operator = operator
     member this.Right = right
+    override this.ToString() = (this :> Expression).ToString()
     interface Expression with
         member this.TokenLiteral() = this.Token.Literal
-        member this.String() = sprintf "(%s%s)" this.Operator (this.Right.String())
+        member this.String() = $"({this.Operator}{this.Right.String()})" 
   
   [<Struct>]
   type InfíxExpression (token: Token, left: Expression, operator: string, right: Expression) =
@@ -91,8 +87,39 @@ module Ast =
     member this.Operator = operator
     member this.Left = left 
     member this.Right = right 
+    override this.ToString() = (this :> Expression).String()
     interface Expression with
         member this.TokenLiteral() = this.Token.Literal
         member this.String() = sprintf "(%s %s %s)"  (this.Left.String()) this.Operator (this.Right.String())
 
-    
+  [<Struct>]  
+  type BooleanExpression (token: Token, value: bool) =
+    member this.Token = token
+    member this.Value = value
+    override this.ToString() = (this :> Expression).String()
+    interface Expression with   
+        member this.TokenLiteral() = this.Token.Literal
+        member this.String() = this.Token.Literal
+  
+  type BlockStatement(token: Token, statements: Statement list) =
+    member this.Token = token
+    member this.Statements = statements
+    override this.ToString() = (this :> Statement).String();
+    interface Statement with
+        member this.TokenLiteral() = this.Token.Literal
+        member this.String() = statements |> List.fold (fun str stmt -> $"{str}{stmt}") "" 
+
+  [<Struct>]
+  type IfExpression(token: Token, condition: Expression, consequence: BlockStatement, alternative: BlockStatement option) =
+    member this.Token = token
+    member this.Condition = condition
+    member this.Consequence = consequence
+    member this.Alternative = alternative
+    override this.ToString() = (this :> Expression).String()
+    interface Expression with
+        member this.TokenLiteral() = this.Token.Literal
+        member this.String() =           
+            match this.Alternative with 
+            | Some(bstmt) -> $"if{this.Condition} {this.Consequence} else {bstmt}"
+            | None -> $"if{this.Condition} {this.Consequence}"
+            

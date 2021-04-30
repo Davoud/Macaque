@@ -37,7 +37,7 @@ module Parsing =
         
         let mutable curToken: Token = lexer.NextToken()
         let mutable peekToken: Token = lexer.NextToken()
-       
+               
         let mutable prefixParseFns: Map<TokenType,PrefixParseFn> = Map.empty
         let mutable infixParseFns:  Map<TokenType,InfixParseFn>  = Map.empty
     
@@ -50,13 +50,17 @@ module Parsing =
             MINUS,      SUM;
             ASTRISK,    PRODUCT;
             SLASH,      PRODUCT;]
-        
+            
+        let nilExpression = { new Expression with
+            member this.TokenLiteral() = "???"
+            member this.String() = "???" }
+    
         let nextToken(): unit = 
             curToken <- peekToken
             peekToken <- lexer.NextToken()
                          
         let expectError (tType: TokenType) =
-             errors <- errors @ [$"expected next token to be {tType}, got {peekToken.Type} instead!"]
+             errors <- errors @ [$"expected next token to be {tType}, got {peekToken} instead!"]
 
         let expectPeek (tokenType: TokenType): bool = 
             match peekToken.Type = tokenType with 
@@ -68,22 +72,21 @@ module Parsing =
         let peekPrecedenc(): Precedence = precedences.GetValueOrDefault(peekToken.Type, LOWEST)
         let curPrecedence(): Precedence = precedences.GetValueOrDefault(curToken.Type, LOWEST)
 
-        let rec seek (precedence: Precedence) (left: Expression): Expression =
+        let rec bind (precedence: Precedence) (left: Expression): Expression =
             if not (peekTokenIs SEMICOLON) && precedence < peekPrecedenc() then
                 match infixParseFns.TryFind peekToken.Type with
-                | Some(infix) -> nextToken(); seek precedence (infix left)
+                | Some(infix) -> nextToken(); bind precedence (infix left)
                 | None -> left
             else
                 left
 
         let parseExpression (precdence: Precedence): Expression =
             match prefixParseFns.TryFind curToken.Type with
-            | Some(prefix) -> seek precdence (prefix())                      
+            | Some(prefix) -> bind precdence (prefix())                      
             | None -> 
-                errors <- errors @ [sprintf "no prefix parse function for %A found" curToken.Type]
-                NullExpression.Instance
+                errors <- errors @ [$"no prefix parse function for {curToken.Literal} found!"]
+                nilExpression
                          
-
         let parseInfixExpression (left: Expression): Expression = 
             let currentToken = curToken
             let precedence = curPrecedence()
@@ -102,26 +105,59 @@ module Parsing =
             match System.Int64.TryParse curToken.Literal with
             | true, value -> IntegerLiteral(curToken, int value) :> Expression
             | _ -> 
-                errors <- errors @ [sprintf "could not parse %s as integer" (curToken.Literal)]
-                NullExpression.Instance                            
+                errors <- errors @ [$"could not parse {curToken.Literal} as integer"]
+                nilExpression                            
        
         let parsePrefixExpression(): Expression =
             let currentToken = curToken
             nextToken()           
             PrefixExpression(currentToken, currentToken.Literal, parseExpression PREFIX) :> Expression
                 
-        do parseIdentifier       |> registerPrefix [IDENT]
-        do parseIntegerLiteral   |> registerPrefix [INT]
-        do parsePrefixExpression |> registerPrefix [BANG; MINUS]
-        do parseInfixExpression  |> registerInfix  [PLUS; MINUS; SLASH; ASTRISK; EQ; NOT_EQ; LT; GT]
-               
+        let parseBooleanExpression(): Expression =
+            BooleanExpression(curToken, curToken.Type = TRUE) :> Expression   
 
+        let parseGroupedExpression(): Expression =
+            nextToken()
+            let exp = parseExpression LOWEST
+            if expectPeek RPAREN then exp else nilExpression
+
+        let parseBlockStatement(): BlockStatement = 
+            let ct = curToken
+            let mutable statement: Statement list = []
+            nextToken()
+            BlockStatement(ct, statement) 
+
+
+        let parseIfExpression(): Expression =
+            let ct = curToken
+            if expectPeek LPAREN then
+                nextToken()
+                let condition = parseExpression LOWEST
+                if expectPeek RPAREN && expectPeek LBRACE then
+                    IfExpression(ct, condition, parseBlockStatement(), None) :> Expression
+                else
+                    nilExpression
+            else
+                nilExpression
+                    
+
+
+            
+        do parseIdentifier        |> registerPrefix [IDENT]
+        do parseIntegerLiteral    |> registerPrefix [INT]
+        do parsePrefixExpression  |> registerPrefix [BANG; MINUS]
+        do parseInfixExpression   |> registerInfix  [PLUS; MINUS; SLASH; ASTRISK; EQ; NOT_EQ; LT; GT]               
+        do parseBooleanExpression |> registerPrefix [TRUE; FALSE]
+        do parseGroupedExpression |> registerPrefix [LPAREN]
+        
         member this.Errors = errors
-                   
+        
+        
+         
         member this.ParseLetStatement(): LetStatement option = 
             let currentToken = curToken
             if expectPeek IDENT then 
-                let ident = Identifier(curToken, curToken.Literal)
+                let ident = Identifier(curToken, curToken.Literal)          
                 if expectPeek ASSIGN then
                     nextToken()
                     if peekTokenIs SEMICOLON then nextToken()
@@ -138,13 +174,12 @@ module Parsing =
         member this.ParseExpressionStatement(): ExpressionStatement option = 
             let currentToken = curToken           
             let expression = parseExpression LOWEST  
-            if(expression <> NullExpression.Instance) then
+            if(expression <> nilExpression) then
                 if peekTokenIs SEMICOLON then nextToken()
                 ExpressionStatement(currentToken, expression) |> Some
             else
                 None
-            
-            
+                        
         member this.ParseStatement(): Statement option =
                   match curToken.Type with
                       | LET     -> match this.ParseLetStatement()        with | Some(s) -> s :> Statement |> Some | None -> None
