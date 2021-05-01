@@ -170,7 +170,7 @@ open Macaque.Parsing
 
     
   [<Test>]
-  member this.TestOperatorPrecedenceParsing() =        
+  member t.TestOperatorPrecedenceParsing() =        
         [| 
            "-a * b",    "((-a) * b)";
            
@@ -214,27 +214,38 @@ open Macaque.Parsing
 
            "-(5 + 5)", "(-(5 + 5))";
 
-           "!(true == true)", "(!(true == true))";                      
+           "!(true == true)", "(!(true == true))"; 
+           
         |]
         |> Array.iter (fun (input, exprected) -> (parse input -1).String() |> should equal exprected)
 
   [<Test>]
-  member this.TestIfExpression() =
-      let exp = this.asExpression<IfExpression> "if (x < y) { x }"
-      this.TestInfixExpressions (exp.Condition) "x" "<" "y"
+  member t.TestIfExpression() =
+      let exp = t.asExpression<IfExpression> "if (x < y) { x }"
+      t.TestInfixExpressions (exp.Condition) "x" "<" "y"
       exp.Consequence.Statements |> Seq.length |> should equal 1
-      let consequence = this.asInstanceOf<ExpressionStatement> exp.Consequence.Statements.Head
-      this.testIdentifer (consequence.Expression) "x"
+      let consequence = t.asInstanceOf<ExpressionStatement> exp.Consequence.Statements.Head
+      t.testIdentifer (consequence.Expression) "x"
       exp.Alternative.IsNone |> should equal true
 
   [<Test>]
-  member this.TestIfElseExpression() =
-      let exp = this.asExpression<IfExpression> "if (x < y) { x } else { y }"
-      this.TestInfixExpressions (exp.Condition) "x" "<" "y"
+  member t.TestIfElseExpression() =
+      let exp = t.asExpression<IfExpression> "if (x < y) { x } else { y }"
+      t.TestInfixExpressions (exp.Condition) "x" "<" "y"
       exp.Consequence.Statements.Length |> should equal 1
-      let consequence = this.asInstanceOf<ExpressionStatement> exp.Consequence.Statements.Head
-      this.testIdentifer (consequence.Expression) "x"
+      let consequence = t.asInstanceOf<ExpressionStatement> exp.Consequence.Statements.Head
+      t.testIdentifer (consequence.Expression) "x"
       exp.Alternative.IsNone |> should equal false
       exp.Alternative.Value.Statements.Length |> should equal 1
-      let alternative = this.asInstanceOf<ExpressionStatement> exp.Alternative.Value.Statements.Head
-      this.testIdentifer (alternative.Expression) "y"
+      let alternative = t.asInstanceOf<ExpressionStatement> exp.Alternative.Value.Statements.Head
+      t.testIdentifer (alternative.Expression) "y"
+
+  [<Test>]
+  member t.TestFunctionLiteralParsing() =
+    let fn = t.asExpression<FunctionLiteral> "fn (x, y) { x + y; }"
+    fn.Parameters.Length |> should equal 2
+    "x" |> t.TestLiteralExperssion fn.Parameters.[0]
+    "y" |> t.TestLiteralExperssion fn.Parameters.[1]
+    fn.Body.Statements.Length |> should equal 1
+    let bodyStmt = t.asInstanceOf<ExpressionStatement> fn.Body.Statements.Head
+    t.TestInfixExpressions bodyStmt.Expression "x" "+" "y"

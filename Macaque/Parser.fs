@@ -179,6 +179,28 @@ module Parsing =
                     IfExpression(ct, condition, parseBlockStatement(), parseElseExpression()) :> Expression else nilExpression
             else
                 nilExpression
+        
+        let parseFunctionParameters(): Identifier list =            
+            if peekTokenIs RPAREN then 
+                nextToken()
+                []
+            else
+                nextToken()
+                let mutable identifiers = [Identifier(curToken, curToken.Literal)]
+                while peekTokenIs COMMA do
+                    nextToken()
+                    nextToken()
+                    identifiers <- identifiers @ [Identifier(curToken, curToken.Literal)]
+                if expectPeek RPAREN then identifiers else []
+            
+        let parseFunctionLiteral(): Expression =
+            let ct = curToken
+            if expectPeek LPAREN then
+                let parameters = parseFunctionParameters()
+                if expectPeek LBRACE then
+                    FunctionLiteral(ct, parameters, parseBlockStatement()) :> Expression
+                else nilExpression
+            else nilExpression
 
         do parseIdentifier        |> registerPrefix [IDENT]
         do parseIntegerLiteral    |> registerPrefix [INT]
@@ -186,7 +208,8 @@ module Parsing =
         do parseInfixExpression   |> registerInfix  [PLUS; MINUS; SLASH; ASTRISK; EQ; NOT_EQ; LT; GT]               
         do parseBooleanExpression |> registerPrefix [TRUE; FALSE]
         do parseGroupedExpression |> registerPrefix [LPAREN]
-        do parseIfExpression      |> registerPrefix [IF]              
+        do parseIfExpression      |> registerPrefix [IF]
+        do parseFunctionLiteral   |> registerPrefix [FUNCTION]
                                                        
         member this.Errors = errors
        
