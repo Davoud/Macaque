@@ -49,7 +49,8 @@ module Parsing =
             PLUS,       SUM; 
             MINUS,      SUM;
             ASTRISK,    PRODUCT;
-            SLASH,      PRODUCT;]
+            SLASH,      PRODUCT;
+            LPAREN,     CALL;]
             
         let nilExpression = { new Expression with
             member this.TokenLiteral() = "???"
@@ -129,16 +130,18 @@ module Parsing =
                 let ident = Identifier(curToken, curToken.Literal)          
                 if expectPeek ASSIGN then
                     nextToken()
+                    let value = parseExpression LOWEST
                     if peekTokenIs SEMICOLON then nextToken()
-                    LetStatement(currentToken, ident, None) |> Some
+                    LetStatement(currentToken, ident, value) |> Some
                 else None
             else None
         
-        let parseReturnStatement(): ReturnStatement option = 
+        let parseReturnStatement(): ReturnStatement = 
             let currentToken = curToken
             nextToken() 
+            let returnValue = parseExpression LOWEST
             if peekTokenIs SEMICOLON then nextToken()
-            ReturnStatement(currentToken, None) |> Some
+            ReturnStatement(currentToken, returnValue)
            
         let parseExpressionStatement(): ExpressionStatement option = 
             let currentToken = curToken           
@@ -151,8 +154,8 @@ module Parsing =
 
         let parseStatement(): Statement option =
             match curToken.Type with
-                | LET     -> match parseLetStatement()        with | Some(s) -> s :> Statement |> Some | None -> None
-                | RETURN  -> match parseReturnStatement()     with | Some(s) -> s :> Statement |> Some | None -> None
+                | LET     -> match parseLetStatement() with | Some(s) -> s :> Statement |> Some | None -> None
+                | RETURN  -> parseReturnStatement() :> Statement |> Some
                 | _       -> match parseExpressionStatement() with | Some(s) -> s :> Statement |> Some | None -> None
             
         let parseBlockStatement(): BlockStatement = 
@@ -182,7 +185,7 @@ module Parsing =
         
         let parseFunctionParameters(): Identifier list =            
             if peekTokenIs RPAREN then 
-                nextToken()
+                nextToken(); 
                 []
             else
                 nextToken()
@@ -197,10 +200,25 @@ module Parsing =
             let ct = curToken
             if expectPeek LPAREN then
                 let parameters = parseFunctionParameters()
-                if expectPeek LBRACE then
-                    FunctionLiteral(ct, parameters, parseBlockStatement()) :> Expression
-                else nilExpression
+                if expectPeek LBRACE then FunctionLiteral(ct, parameters, parseBlockStatement()) :> Expression else nilExpression
             else nilExpression
+
+        let parseCallArguments(): Expression list =
+            if peekTokenIs RPAREN then 
+                nextToken() 
+                []
+            else
+                nextToken()
+                let mutable args = [parseExpression LOWEST]
+                while peekTokenIs COMMA do
+                    nextToken()
+                    nextToken()
+                    args <- args @ [parseExpression LOWEST]
+                if expectPeek RPAREN then args else []
+
+    
+        let parseCallExpresion(func: Expression): Expression =             
+            CallExpression(curToken, func, parseCallArguments()) :> Expression
 
         do parseIdentifier        |> registerPrefix [IDENT]
         do parseIntegerLiteral    |> registerPrefix [INT]
@@ -210,6 +228,7 @@ module Parsing =
         do parseGroupedExpression |> registerPrefix [LPAREN]
         do parseIfExpression      |> registerPrefix [IF]
         do parseFunctionLiteral   |> registerPrefix [FUNCTION]
+        do parseCallExpresion     |> registerInfix  [LPAREN]
                                                        
         member this.Errors = errors
        

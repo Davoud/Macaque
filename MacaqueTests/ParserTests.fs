@@ -75,12 +75,16 @@ open Macaque.Parsing
     let input = 
         "let x = 5;
          let y = 10;
-         let foobar = 838383;"
-           
+         let foobar = 838383;"           
     let program = parse input 3    
     let expectedIdentifiers = [| "x"; "y"; "foobar" |]
     for i in 0 .. expectedIdentifiers.Length - 1 do
         this.TestLetStatement program.Statements.[i] expectedIdentifiers.[i]
+
+    let program = parse "let x = 5 * 4;" 1
+    let stmt = this.asInstanceOf<LetStatement> program.Statements.Head
+    stmt.Name.Value |> should equal "x"   
+    this.TestInfixExpressions stmt.Value 5 "*" 4
 
   [<Test>]
   member this.TestReturnStatement() =
@@ -99,7 +103,7 @@ open Macaque.Parsing
         LetStatement(
             Token(TokenType.LET, "let"), 
             Identifier(Token(TokenType.IDENT, "myVar"), "myVar"),
-            Some(Identifier(Token(TokenType.IDENT, "anotherVar"), "anotherVar") :> Expression))
+            Identifier(Token(TokenType.IDENT, "anotherVar"), "anotherVar") :> Expression)
     
     (letStatement :> Statement).String() |> should equal "let myVar = anotherVar;"
    
@@ -214,7 +218,13 @@ open Macaque.Parsing
 
            "-(5 + 5)", "(-(5 + 5))";
 
-           "!(true == true)", "(!(true == true))"; 
+           "!(true == true)", "(!(true == true))";
+           
+           "a + add(b * c) + d", "((a + add((b * c))) + d)";
+           
+           "add(a, b, 1, 2 * 3, 4 + 5, add(6, 7 * 8))", "add(a, b, 1, (2 * 3), (4 + 5), add(6, (7 * 8)))";
+           
+           "add(a + b + c * d / f + g)", "add((((a + b) + ((c * d) / f)) + g))";
            
         |]
         |> Array.iter (fun (input, exprected) -> (parse input -1).String() |> should equal exprected)
@@ -249,3 +259,26 @@ open Macaque.Parsing
     fn.Body.Statements.Length |> should equal 1
     let bodyStmt = t.asInstanceOf<ExpressionStatement> fn.Body.Statements.Head
     t.TestInfixExpressions bodyStmt.Expression "x" "+" "y"
+  
+  [<Test>]
+  member t.TestFunctionParameterParsing() =
+    [| 
+        "fn() {};", [];
+        "fn(x) {};", ["x"];
+        "fn(x, y, z) {};", ["x"; "y"; "z"];
+    |]
+    |> Array.iter (fun (input, expected) -> 
+         let fn = t.asExpression<FunctionLiteral> input
+         fn.Parameters.Length |> should equal expected.Length
+         for i in 0 .. expected.Length - 1 do
+            t.TestLiteralExperssion fn.Parameters.[i] expected.[i])
+
+  [<Test>]
+  member t.TestCallExpressionParsing() =
+    let exp = t.asExpression<CallExpression> "add(1, 2 * 3, 4 + 5);"
+    t.testIdentifer (exp.Function) "add"
+    exp.Arguments.Length |> should equal 3
+    t.TestLiteralExperssion exp.Arguments.[0] 1
+    t.TestInfixExpressions exp.Arguments.[1] 2 "*" 3
+    t.TestInfixExpressions exp.Arguments.[2] 4 "+" 5
+    

@@ -33,25 +33,24 @@ module Ast =
         member this.String() = this.ToString()
 
  [<Struct>]
- type LetStatement (token: Token, name: Identifier, value: Expression option) =
+ type LetStatement (token: Token, name: Identifier, value: Expression) =
     member this.Token = token
     member this.Name = name
-    member this.Value = value        
+    member this.Value = value    
+    override this.ToString() = (this :> Statement).String()
     interface Statement with
         member this.TokenLiteral() = this.Token.Literal
-        member this.String() = this.ToString()
-    override this.ToString() = 
-        let exp = match this.Value with Some(exp) -> (sprintf "%A" exp) | None -> ""
-        sprintf "%s %A = %s;" ((this :> Statement).TokenLiteral()) this.Name exp        
-
+        member this.String() = sprintf "%s %A = %A;" this.Token.Literal this.Name value
+           
+             
  [<Struct>]                
- type ReturnStatement (token: Token, value: Expression option) =    
+ type ReturnStatement (token: Token, value: Expression) =    
     member this.Token = token
     member this.ReturnValue = value
-    override this.ToString() = sprintf "%s %s;" ((this :> Statement).TokenLiteral()) (match this.ReturnValue with | Some(exp) -> (sprintf "%A" exp) | None -> "")
+    override this.ToString() = (this :> Statement).String()
     interface Statement with 
         member this.TokenLiteral() = this.Token.Literal
-        member this.String() = this.ToString()
+        member this.String() = sprintf "%s %A;" this.Token.Literal this.ReturnValue
   
  [<Struct>]
  type ExpressionStatement (token: Token, expression: Expression) =
@@ -134,3 +133,15 @@ module Ast =
         member this.String() = 
             let paraList = this.Parameters |> List.map (fun p -> $"{p}") |> String.concat ", "
             $"{this.Token.Literal}({paraList}) {this.Body}"
+
+  [<Struct>]
+  type CallExpression(token: Token, func: Expression, arguments: Expression list) = 
+    member this.Token = token
+    member this.Function = func
+    member this.Arguments = arguments
+    override this.ToString() = (this :> Expression).String()
+    interface Expression with   
+        member this.TokenLiteral() = this.Token.Literal
+        member this.String() = 
+            let args = this.Arguments |> List.map (fun arg -> $"{arg}") |> String.concat ", "
+            $"{this.Function}({args})"
