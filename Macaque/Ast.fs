@@ -21,26 +21,26 @@ module Ast =
     member this.Statements = statements    
     member this.Append (s: Statement) = statements <- statements @ [s]
     member this.TokenLiteral() = match statements with head :: _ -> head.TokenLiteral() | [] -> ""    
-    member this.String() = statements |> List.fold (fun acc elem -> acc + (elem :> Node).String()) ""                 
+    member this.String() = statements |> List.map (fun s -> $"{s}") |> String.concat ""        
  
  [<Struct>]
  type Identifier (token: Token, value: string) =   
     member this.Token = token
     member this.Value = value        
-    override this.ToString() = value
+    override this.ToString() = (this :> Expression).String()
     interface Expression with 
         member this.TokenLiteral() = this.Token.Literal
-        member this.String() = this.ToString()
+        member this.String() = value
 
  [<Struct>]
  type LetStatement (token: Token, name: Identifier, value: Expression) =
-    member this.Token = token
-    member this.Name = name
-    member this.Value = value    
+    member _.Token = token
+    member _.Name = name
+    member _.Value = value    
     override this.ToString() = (this :> Statement).String()
     interface Statement with
         member this.TokenLiteral() = this.Token.Literal
-        member this.String() = sprintf "%s %A = %A;" this.Token.Literal this.Name value
+        member this.String() = $"{this.Token.Literal} {this.Name} = {value};"
            
              
  [<Struct>]                
@@ -50,35 +50,35 @@ module Ast =
     override this.ToString() = (this :> Statement).String()
     interface Statement with 
         member this.TokenLiteral() = this.Token.Literal
-        member this.String() = sprintf "%s %A;" this.Token.Literal this.ReturnValue
+        member this.String() = $"{this.Token.Literal} {this.ReturnValue}" 
   
  [<Struct>]
  type ExpressionStatement (token: Token, expression: Expression) =
     member this.Token = token
     member this.Expression = expression
-    override this.ToString() = (this :> Statement).ToString()
+    override this.ToString() = (this :> Statement).String()
     interface Statement with 
            member this.TokenLiteral() = this.Token.Literal
-           member this.String() = this.Expression.String()
+           member this.String() = $"{this.Expression}"
 
  [<Struct>]
  type IntegerLiteral (token: Token, value: int) = 
     member this.Token = token
     member this.Value = value
-    override this.ToString() = (this :> Expression).ToString()
+    override this.ToString() = (this :> Expression).String()
     interface Expression with
         member this.TokenLiteral() = this.Token.Literal
-        member this.String() = this.Value.ToString()
+        member this.String() = $"%i{this.Value}"
   
  [<Struct>]
  type PrefixExpression (token: Token, operator: string, right: Expression) =
     member this.Token = token
     member this.Operator = operator
     member this.Right = right
-    override this.ToString() = (this :> Expression).ToString()
+    override this.ToString() = (this :> Expression).String()
     interface Expression with
         member this.TokenLiteral() = this.Token.Literal
-        member this.String() = $"({this.Operator}{this.Right.String()})" 
+        member this.String() = $"({this.Operator}{this.Right})" 
   
  [<Struct>]
  type InfíxExpression (token: Token, left: Expression, operator: string, right: Expression) =
@@ -89,7 +89,7 @@ module Ast =
     override this.ToString() = (this :> Expression).String()
     interface Expression with
         member this.TokenLiteral() = this.Token.Literal
-        member this.String() = sprintf "(%s %s %s)"  (this.Left.String()) this.Operator (this.Right.String())
+        member this.String() = $"({this.Left} {this.Operator} {this.Right})"
 
  [<Struct>]  
  type BooleanExpression (token: Token, value: bool) =
@@ -119,8 +119,8 @@ module Ast =
         member this.TokenLiteral() = this.Token.Literal
         member this.String() =           
             match this.Alternative with 
-            | Some(bstmt) -> $"if{this.Condition} {this.Consequence} else {bstmt}"
-            | None -> $"if{this.Condition} {this.Consequence}"
+            | Some(bstmt) -> $"if {this.Condition} {this.Consequence} else {bstmt}"
+            | None -> $"if {this.Condition} {this.Consequence}"
 
  [<Struct>]            
  type FunctionLiteral(token: Token, paramters: Identifier list, body: BlockStatement) =

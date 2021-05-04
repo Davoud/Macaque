@@ -168,18 +168,24 @@ module Parsing =
             BlockStatement(ct, statements |> List.rev)
 
         let parseElseExpression(): BlockStatement option =
-            if not (peekTokenIs ELSE) then None
-            else
+            if peekTokenIs ELSE then 
                 nextToken()
-                if expectPeek RBRACE then None else parseBlockStatement() |> Some
+                if not (expectPeek LBRACE) then 
+                    None 
+                else 
+                    parseBlockStatement() |> Some
+            else
+                None
             
         let parseIfExpression(): Expression =
             let ct = curToken
             if expectPeek LPAREN then
                 nextToken()
-                let condition = parseExpression LOWEST
-                if expectPeek RPAREN && expectPeek LBRACE then
-                    IfExpression(ct, condition, parseBlockStatement(), parseElseExpression()) :> Expression else nilExpression
+                let condition = parseExpression LOWEST                
+                if not (expectPeek RPAREN) || not (expectPeek LBRACE) then
+                    nilExpression
+                else 
+                    IfExpression(ct, condition, parseBlockStatement(), parseElseExpression()) :> Expression             
             else
                 nilExpression
         
