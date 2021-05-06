@@ -20,10 +20,9 @@ open Macaque.Parsing
   let parse (input: string) (expectedNumStatments: int): Program =
     let parser = Parser(Lexer input)
     let program = parser.ParseProgram()
-    printErrors parser.Errors
-    program.IsSome |> should equal true    
-    if expectedNumStatments > 0 then program.Value.Statements.Length |> should equal expectedNumStatments    
-    program.Value
+    printErrors parser.Errors    
+    if expectedNumStatments > 0 then program.Statements.Length |> should equal expectedNumStatments    
+    program
   
   member _.asInstanceOf<'T>(o: obj): 'T =
     o |> should be instanceOfType<'T>
@@ -227,7 +226,7 @@ open Macaque.Parsing
            "add(a + b + c * d / f + g)", "add((((a + b) + ((c * d) / f)) + g))";
            
         |]
-        |> Array.iter (fun (input, exprected) -> (parse input -1).String() |> should equal exprected)
+        |> Array.iter (fun (input, exprected) -> (parse input -1).ToString() |> should equal exprected)
 
   [<Test>]
   member t.TestIfExpression() =

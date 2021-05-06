@@ -104,7 +104,7 @@ module Parsing =
 
         let parseIntegerLiteral(): Expression =
             match System.Int64.TryParse curToken.Literal with
-            | true, value -> IntegerLiteral(curToken, int value) :> Expression
+            | true, value -> IntegerLiteral(curToken, value) :> Expression
             | _ -> 
                 errors <- errors @ [$"could not parse {curToken.Literal} as integer"]
                 nilExpression                            
@@ -238,12 +238,12 @@ module Parsing =
                                                        
         member this.Errors = errors
        
-        member this.ParseProgram(): Ast.Program option =
+        member this.ParseProgram(): Ast.Program =
             let program = Program();            
             while curToken.Type <> EOF do
                 match parseStatement() with | Some(statement) -> program.Append statement | _ -> ()                    
                 nextToken()            
-            Some(program)
+            program
 
    
             

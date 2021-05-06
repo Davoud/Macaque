@@ -20,8 +20,10 @@ module Ast =
     let mutable statements: Statement list = []
     member this.Statements = statements    
     member this.Append (s: Statement) = statements <- statements @ [s]
-    member this.TokenLiteral() = match statements with head :: _ -> head.TokenLiteral() | [] -> ""    
-    member this.String() = statements |> List.map (fun s -> $"{s}") |> String.concat ""        
+    override this.ToString() = (this :> Node).String()
+    interface Node with 
+        member this.TokenLiteral() = match statements with head :: _ -> head.TokenLiteral() | [] -> ""    
+        member this.String() = statements |> List.map (fun s -> $"{s}") |> String.concat ""        
  
  [<Struct>]
  type Identifier (token: Token, value: string) =   
@@ -62,7 +64,7 @@ module Ast =
            member this.String() = $"{this.Expression}"
 
  [<Struct>]
- type IntegerLiteral (token: Token, value: int) = 
+ type IntegerLiteral (token: Token, value: int64) = 
     member this.Token = token
     member this.Value = value
     override this.ToString() = (this :> Expression).String()

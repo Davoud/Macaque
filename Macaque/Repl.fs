@@ -3,6 +3,7 @@
 open System
 open Macaque
 open Macaque.Parsing
+open Macaque.Evaluator
 
 module Repl =
     
@@ -28,13 +29,10 @@ module Repl =
             printfn "\nThere were some parsing error: "
             printParserErrors parser.Errors            
             printfn ""
-                    
-        match program with 
-            | Some(p) -> 
-                    Console.ForegroundColor <- ConsoleColor.Yellow
-                    printfn "\n%s\n" (p.String())                    
-            | None -> printfn "Parsing Error!"
-
+              
+        Console.ForegroundColor <- ConsoleColor.Yellow
+        printfn "\n%s\n" ((eval program).Inspect())
+                   
 
     let rec nextLine() =
         match Console.ReadLine() with
