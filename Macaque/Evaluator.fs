@@ -10,8 +10,30 @@ module rec Evaluator =
     let TRUE = Boolean(true) :> Object
     let FALSE = Boolean(false) :> Object
 
-    let evalStatements (stmt: Statement list): Object = eval(stmt.Head)
+    let evalProgram (program: Program): Object =
+        let mutable result: Object = NULL
+       
+        let rec loop (statements: Statement list) =
+            match statements with 
+            | statement :: rest -> 
+                result <- eval statement
+                match result with :? ReturnValue as rv -> rv.Value | _ -> loop rest
+            | _ -> result
 
+        loop program.Statements
+    
+    let evalBlockStatement (block: BlockStatement): Object = 
+        let mutable result: Object = NULL
+
+        let rec loop (statements: Statement list) =
+            match statements with
+            | statements :: rest ->
+                result <- eval statements
+                if result <> NULL && result.Type() = ObjectType.RETURN_VALUE_OBJ then result else loop rest
+            | _ -> result
+
+        loop block.Statements
+    
     let nativeBoolToBooleanObject(value: bool): Object = if value then TRUE else FALSE
 
     let evalBangOperatorExpression (right: Object): Object =
@@ -51,15 +73,28 @@ module rec Evaluator =
                | "==" -> nativeBoolToBooleanObject(left = right)
                | "!=" -> nativeBoolToBooleanObject(left <> right)
                | _ -> NULL
-        
+    
+    let isTruthy(object: Object): bool = 
+        if object = NULL then false
+        else if object = TRUE then true
+        else if object = FALSE then false
+        else true        
+                               
+    let evalIfExpresion (ie: IfExpression) =        
+        if ie.Condition |> eval |> isTruthy then eval ie.Consequence
+        else if ie.Alternative.IsSome then eval ie.Alternative.Value
+        else NULL
 
     let rec eval (node: Node): Object = 
       match node with
-      | :? Program              as p -> evalStatements p.Statements
-      | :? ExpressionStatement  as x -> eval x.Expression
-      | :? IntegerLiteral       as i -> Integer(i.Value) :> Object 
-      | :? BooleanExpression    as b -> if b.Value then TRUE else FALSE
+      | :? Program              as pg -> evalProgram pg
+      | :? ExpressionStatement  as xp -> eval xp.Expression
+      | :? IntegerLiteral       as il -> Integer(il.Value) :> Object 
+      | :? BooleanExpression    as bx -> if bx.Value then TRUE else FALSE
       | :? PrefixExpression     as px -> evalPrefixExpression px.Operator (eval px.Right)
       | :? InfíxExpression      as ix -> evalInfixExpression ix.Operator (eval ix.Left) (eval ix.Right)
-      | _ -> NULL
+      | :? BlockStatement       as bs -> evalBlockStatement bs
+      | :? IfExpression         as fx -> evalIfExpresion fx
+      | :? ReturnStatement      as rs -> ReturnValue(eval rs.ReturnValue) :> Object
+      | _                             -> NULL
         

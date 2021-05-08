@@ -12,7 +12,10 @@
     [<Literal>]
     let NULL_OBJ = "NULL"
 
-    type ObjectType = INTEGER_OBJ | BOOLEAN_OBJ | NULL_OBJ
+    [<Literal>]
+    let RETURN_VALUE_OBJ = "RETURN_VALUE"
+
+    type ObjectType = INTEGER_OBJ | BOOLEAN_OBJ | NULL_OBJ | RETURN_VALUE_OBJ
         
     type Object =
         abstract member Type: unit -> ObjectType
@@ -39,5 +42,10 @@
             member self.Inspect() = "null"
       end
 
-
+    [<Struct>]
+    type ReturnValue(value: Object) =
+        member self.Value = value
+        interface Object with
+            member self.Type() = RETURN_VALUE_OBJ
+            member self.Inspect() = sprintf "%s" (value.Inspect())
         

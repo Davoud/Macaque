@@ -10,7 +10,7 @@ open Macaque.Ast
 
  [<TestFixture>]    
  type EvaluatorTests() =
-    
+        
     member _.asInstanceOf<'T>(o: obj): 'T = o |> should be instanceOfType<'T>; o :?> 'T
 
     member t.testEval(input: string): Object = Parser(Lexer input).ParseProgram() :> Node |> eval
@@ -76,4 +76,43 @@ open Macaque.Ast
             "(1 > 2) == false", true;
             
         |]
-        |> Seq.iter (fun (input, expected) -> t.testBooleanObject (t.testEval input) expected)    
+        |> Seq.iter (fun (input, expected) -> t.testBooleanObject (t.testEval input) expected) 
+        
+    
+
+    [<Test>]
+    member t.TestIfElseExpression() =        
+        [| 
+            "if (true) { 10 }", 10L;
+            "if (1) { 10 }", 10L;
+            "if (1 < 2) { 10 }", 10L;
+            "if (1 > 2) { 10 } else { 20 }", 20L;
+            "if (1 < 2) { 10 } else { 20 }", 10L;
+        |]
+        |> Seq.iter (fun (input, expected) -> t.testIntegerObject (t.testEval input) expected)            
+        
+        [|
+            "if (false) { 10 }", NULL;            
+            "if (1 > 2) { 10 }", NULL;
+            "if (1 != 0) { false }", FALSE;
+            "if (2 == 2) { true }", TRUE;
+            "if (2 + 4 == 2 * 3) { 2 > 0 } else { 2 < 0 }", TRUE;
+            "if (2 + 4 != 2 * 3) { 2 > 0 } else { 2 < 0 }", FALSE;
+        |]
+        |> Seq.iter (fun (input, expected) -> (t.testEval input) |> should equal expected)
+            
+    [<Test>]                    
+    member t.TestReturnStatement() =
+        [| 
+            "return 10;", 10L;
+            "return 10; 9;", 10L;
+            "return 2 * 5; 9;", 10L;
+            "9; return 2 * 5; 9;", 10L;
+            "if (10 > 1) {
+              if (10 > 1) {
+                return 10;
+              }
+              return 1;
+            }", 10L
+        |]
+        |> Seq.iter (fun (input, expectd) -> t.testIntegerObject (t.testEval input) expectd)
