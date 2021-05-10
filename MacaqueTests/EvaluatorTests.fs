@@ -13,6 +13,11 @@ open Macaque.Ast
         
     member _.asInstanceOf<'T>(o: obj): 'T = o |> should be instanceOfType<'T>; o :?> 'T
 
+    member _.asInstanceOf<'T>(o: obj, id: int): 'T = 
+        match o with
+        | :? 'T as t -> t
+        | _ -> failwith (sprintf "(%i) %O is not an instance of '%s'" id o typeof<'T>.Name)
+
     member t.testEval(input: string): Object = Parser(Lexer input).ParseProgram() :> Node |> eval
 
     member t.testIntegerObject (obj: Object) (expected: int64) =      
@@ -116,3 +121,45 @@ open Macaque.Ast
             }", 10L
         |]
         |> Seq.iter (fun (input, expectd) -> t.testIntegerObject (t.testEval input) expectd)
+
+    [<Test>]
+    member t.TestErrorHandling() =
+        [|
+            1,
+            "5 + true;",
+            "type mismatch: INTEGER + BOOLEAN";
+            
+            2,
+            "5 + true; 5;",
+            "type mismatch: INTEGER + BOOLEAN";
+            
+            3,
+            "-true",
+            "unknown operator: -BOOLEAN";
+            
+            4,
+            "true + false;",
+            "unknown operator: BOOLEAN + BOOLEAN";
+            
+            5,
+            "5; true + false; 5",
+            "unknown operator: BOOLEAN + BOOLEAN";
+               
+            6,
+            "if (10 > 1)  true + false; }",
+            "unknown operator: BOOLEAN + BOOLEAN";
+            
+            7,
+            "if (10 > 1) {
+              if (10 > 1) {
+                return true + false;
+              }
+              return 1;
+            }",
+            "unknown operator: BOOLEAN + BOOLEAN";            
+        |]
+        |> Seq.iter (fun (id, input, expectedMessage) -> 
+            let evaluated = input |> t.testEval
+            let errObj = t.asInstanceOf<Error> (evaluated, id)
+            errObj.Message |> should equal expectedMessage
+        )
