@@ -18,7 +18,7 @@ open Macaque.Ast
         | :? 'T as t -> t
         | _ -> failwith (sprintf "(%i) %O is not an instance of '%s'" id o typeof<'T>.Name)
 
-    member t.testEval(input: string): Object = Parser(Lexer input).ParseProgram() :> Node |> eval
+    member t.testEval(input: string): Object = eval (Parser(Lexer input).ParseProgram() :> Node) (Environment())
 
     member t.testIntegerObject (obj: Object) (expected: int64) =      
         (t.asInstanceOf<Integer> obj).Value |> should equal expected
@@ -125,41 +125,29 @@ open Macaque.Ast
     [<Test>]
     member t.TestErrorHandling() =
         [|
-            1,
-            "5 + true;",
-            "type mismatch: INTEGER + BOOLEAN";
-            
-            2,
-            "5 + true; 5;",
-            "type mismatch: INTEGER + BOOLEAN";
-            
-            3,
-            "-true",
-            "unknown operator: -BOOLEAN";
-            
-            4,
-            "true + false;",
-            "unknown operator: BOOLEAN + BOOLEAN";
-            
-            5,
-            "5; true + false; 5",
-            "unknown operator: BOOLEAN + BOOLEAN";
-               
-            6,
-            "if (10 > 1)  true + false; }",
-            "unknown operator: BOOLEAN + BOOLEAN";
-            
-            7,
-            "if (10 > 1) {
-              if (10 > 1) {
-                return true + false;
-              }
-              return 1;
-            }",
-            "unknown operator: BOOLEAN + BOOLEAN";            
+            1, "5 + true;", "type mismatch: INTEGER + BOOLEAN";            
+            2, "5 + true; 5;", "type mismatch: INTEGER + BOOLEAN";
+            3, "-true", "unknown operator: -BOOLEAN";            
+            4, "true + false;", "unknown operator: BOOLEAN + BOOLEAN";            
+            5, "5; true + false; 5", "unknown operator: BOOLEAN + BOOLEAN";               
+            6, "if (10 > 1)  true + false; }", "unknown operator: BOOLEAN + BOOLEAN";            
+            7, "if (10 > 1) { if (10 > 1) { return true + false; }return 1; }", "unknown operator: BOOLEAN + BOOLEAN"; 
+            8, "foobar", "identifier not found: foobar";
         |]
         |> Seq.iter (fun (id, input, expectedMessage) -> 
             let evaluated = input |> t.testEval
             let errObj = t.asInstanceOf<Error> (evaluated, id)
             errObj.Message |> should equal expectedMessage
+        )
+
+    [<Test>]
+    member t.TestLetStatement() =
+        [|
+            "let a = 5; a;", 5L;
+            "let a = 5 * 5; a;", 25L;
+            "let a = 5; let b = a; b;", 5L;
+            "let a = 5; let b = a; let c = a + b + 5; c;", 15L;
+        |]
+        |> Seq.iter (fun (input, expectd) -> 
+            t.testIntegerObject (t.testEval input) expectd
         )

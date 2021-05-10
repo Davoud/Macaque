@@ -10,15 +10,13 @@ module rec Evaluator =
     let TRUE = Boolean(true) :> Object
     let FALSE = Boolean(false) :> Object
     
-    let newError message = Error(message) :> Object
-
-    let isError (object: Object) = object.Type = ERROR 
-
-    let evalProgram (program: Program): Object =                       
+    let inline newError message = Error(message) :> Object
+      
+    let evalProgram (program: Program) (env: Environment): Object =                       
         let rec evalAll (statements: Statement list) = 
             match statements with
             | statement :: rest ->
-                match eval statement with
+                match eval statement env with
                 | :? ReturnValue as r -> Some(r.Value)
                 | e when e.Type = ERROR -> Some(e) 
                 | last -> match evalAll rest with Some(o) -> Some(o) | None -> Some(last)
@@ -27,12 +25,12 @@ module rec Evaluator =
         match evalAll program.Statements with Some(obj) -> obj | None -> NULL
 
     
-    let evalBlockStatement (block: BlockStatement): Object =  
+    let evalBlockStatement (block: BlockStatement) (env: Environment): Object =  
         let inline isReturnOrError objType = objType = RETURN_VALUE || objType = ERROR
         let rec evalAll (statements: Statement list) =
             match statements with
             | statement :: rest ->
-                let result = eval statement
+                let result = eval statement env
                 if result <> NULL && isReturnOrError (result.Type) then Some(result) 
                 else match evalAll rest with Some(o) -> Some(o) | None -> Some(result)
             | [] -> None
@@ -40,9 +38,9 @@ module rec Evaluator =
         match evalAll block.Statements with Some(lastObject) -> lastObject | None -> NULL
     
 
-    let nativeBoolToBooleanObject(value: bool): Object = if value then TRUE else FALSE
+    let inline nativeBoolToBooleanObject(value: bool): Object = if value then TRUE else FALSE
 
-    let evalBangOperatorExpression (right: Object): Object =
+    let evalBangOperatorExpression (right: Object): Object =        
         match right with
         | :? Boolean as b -> nativeBoolToBooleanObject(not b.Value)
         | :? Null -> TRUE        
@@ -81,46 +79,42 @@ module rec Evaluator =
                | "!=" -> nativeBoolToBooleanObject(left <> right)
                | _ -> newError (sprintf "unknown operator: %O %s %O" (left.Type) operator (right.Type))
     
-    let isTruthy(object: Object): bool = 
+    let inline isTruthy(object: Object): bool = 
         if object = NULL then false
         else if object = TRUE then true
         else if object = FALSE then false
         else true        
-                               
-    let evalIfExpresion (ie: IfExpression) =
-        match eval ie.Condition with
-        | cond when isError cond -> cond
-        | cond -> 
-            if isTruthy cond then eval ie.Consequence
-            else if ie.Alternative.IsSome then eval ie.Alternative.Value
-            else NULL
 
-    let rec eval (node: Node): Object = 
+    let ifNotError (object: Object) (f: Object -> Object): Object = 
+        match object with 
+        | obj when obj.Type = ERROR -> obj
+        | obj -> f obj
+               
+               
+    let evalIfExpresion (ie: IfExpression) (env: Environment) =
+        ifNotError (eval ie.Condition env) (fun cond -> 
+            if isTruthy cond then eval ie.Consequence env
+            else if ie.Alternative.IsSome then eval ie.Alternative.Value env
+            else NULL)
+
+    let evalIdentifier (node: Identifier) (env: Environment): Object =
+        match env.Get(node.Value) with
+        | Some(value) -> value
+        | None -> newError(sprintf "identifier not found: %s" node.Value)
+
+    let rec eval (node: Node) (env: Environment): Object = 
       match node with
-      | :? Program as program -> evalProgram program
-      | :? ExpressionStatement as expressionStmt -> eval expressionStmt.Expression
+      | :? Program as program -> evalProgram program env
+      | :? ExpressionStatement as expressionStmt -> eval expressionStmt.Expression env
       | :? IntegerLiteral as integer -> Integer(integer.Value) :> Object 
       | :? BooleanExpression as boolean -> if boolean.Value then TRUE else FALSE
-      | :? BlockStatement as blockStmt -> evalBlockStatement blockStmt
-      | :? IfExpression as ifExp -> evalIfExpresion ifExp
-
-      | :? PrefixExpression as prefixExp -> 
-            match eval prefixExp.Right with 
-            | right when isError right -> right 
-            | right -> evalPrefixExpression prefixExp.Operator right
-
+      | :? BlockStatement as blockStmt -> evalBlockStatement blockStmt env
+      | :? IfExpression as ifExp -> evalIfExpresion ifExp env
+      | :? PrefixExpression as prefixExp -> ifNotError (eval prefixExp.Right env) (evalPrefixExpression prefixExp.Operator)
+      | :? ReturnStatement as returnStmt -> ifNotError (eval returnStmt.ReturnValue env) (fun value -> ReturnValue(value) :> Object)                              
       | :? InfíxExpression as infixExp -> 
-            match eval infixExp.Left with
-            | left when isError left -> left
-            | left -> 
-                match eval infixExp.Right with
-                | right when isError right -> right
-                | right -> evalInfixExpression infixExp.Operator left right
-                  
-      | :? ReturnStatement as returnStmt -> 
-            match eval returnStmt.ReturnValue with 
-            | value when isError value -> value 
-            | value -> ReturnValue(value) :> Object  
-      
+            ifNotError (eval infixExp.Left env) (fun left -> ifNotError (eval infixExp.Right env) (fun right -> evalInfixExpression infixExp.Operator left right))                                                          
+      | :? LetStatement as letStmt -> ifNotError (eval letStmt.Value env) (fun value -> env.Set(letStmt.Name.Value, value); value)
+      | :? Identifier as ident -> evalIdentifier ident env
       | _ -> NULL
         

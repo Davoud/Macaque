@@ -1,5 +1,7 @@
 ﻿namespace Macaque
 
+ open System.Collections.Generic
+
 
  module Objects =
     
@@ -44,3 +46,8 @@
             member self.Type = ERROR
             member self.Inspect() = sprintf "ERROR: %s" message
 
+    type Environment() =
+        let mutable store: Map<string, Object> = Map.empty
+        member self.Get(name: string) = store.TryFind(name)
+        member self.Set(name: string, value: Object) = store <- store.Add(name, value);
+            

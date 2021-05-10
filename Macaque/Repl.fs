@@ -9,6 +9,8 @@ module Repl =
     
     let prompt() = printf ">> "      
 
+    let env = Objects.Environment()
+
     let printTokens (lex:Lexer) = 
         for token in lex.IterateOver() do
             printfn "%A" token
@@ -31,7 +33,7 @@ module Repl =
             printfn ""
               
         Console.ForegroundColor <- ConsoleColor.Yellow
-        printfn "\n%s\n" ((eval program).Inspect())
+        printfn "\n%s\n" ((eval program env).Inspect())
                    
 
     let rec nextLine() =
