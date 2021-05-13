@@ -33,8 +33,10 @@ module Repl =
             printfn ""
               
         Console.ForegroundColor <- ConsoleColor.Yellow
-        printfn "\n%s\n" ((eval program env).Inspect())
-                   
+        (eval program env) |> function 
+        | result when result = NULL -> () 
+        | result -> printfn "\n%s\n" (result.Inspect())
+                                   
 
     let rec nextLine() =
         match Console.ReadLine() with

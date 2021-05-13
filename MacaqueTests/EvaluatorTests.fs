@@ -23,6 +23,9 @@ open Macaque.Ast
     member t.testIntegerObject (obj: Object) (expected: int64) =      
         (t.asInstanceOf<Integer> obj).Value |> should equal expected
 
+    member t.testIntegerObjectWithId (obj: Object) (expected: int64, id: int) =      
+        ((t.asInstanceOf<Integer> obj).Value, id) |> should equal (expected, id)
+
     member t.testBooleanObject (obj: Object) (expected: bool) =
         (t.asInstanceOf<Boolean> obj).Value |> should equal expected
 
@@ -78,13 +81,10 @@ open Macaque.Ast
             "(1 < 2) == true", true;
             "(1 < 2) == false", false;
             "(1 > 2) == true", false;
-            "(1 > 2) == false", true;
-            
+            "(1 > 2) == false", true;            
         |]
         |> Seq.iter (fun (input, expected) -> t.testBooleanObject (t.testEval input) expected) 
-        
-    
-
+            
     [<Test>]
     member t.TestIfElseExpression() =        
         [| 
@@ -137,8 +137,7 @@ open Macaque.Ast
         |> Seq.iter (fun (id, input, expectedMessage) -> 
             let evaluated = input |> t.testEval
             let errObj = t.asInstanceOf<Error> (evaluated, id)
-            errObj.Message |> should equal expectedMessage
-        )
+            errObj.Message |> should equal expectedMessage)
 
     [<Test>]
     member t.TestLetStatement() =
@@ -148,6 +147,43 @@ open Macaque.Ast
             "let a = 5; let b = a; b;", 5L;
             "let a = 5; let b = a; let c = a + b + 5; c;", 15L;
         |]
-        |> Seq.iter (fun (input, expectd) -> 
-            t.testIntegerObject (t.testEval input) expectd
-        )
+        |> Seq.iter (fun (input, expectd) -> t.testIntegerObject (t.testEval input) expectd)
+
+    [<Test>]
+    member t.TestFunctionObject() =
+        let evaluated = t.testEval "fn(x) { x + 2 };"
+        let fn = t.asInstanceOf<Function> evaluated
+        fn.Parameters.Length |> should equal 1
+        (fn.Parameters.Head :> Expression).String() |> should equal "x"
+        (fn.Body :> Statement).String() |> should equal "(x + 2)"
+
+    [<Test>]
+    member t.TestFunctionApplication() = 
+        [| 
+            1, "let identity = fn(x) { x; }; identity(5);", 5L;
+            2, "let identity = fn(x) { return x; }; identity(5);", 5L;
+            3, "let double = fn(x) { x * 2; }; double(5);", 10L;
+            4, "let add = fn(x, y) { x + y; }; add(5, 5);", 10L;
+            5, "let add = fn(x, y) { x + y; }; add(5 + 5, add(5, 5));", 20L;
+            6, "fn(x) { x; }(5)", 5L;
+        |]
+        |> Seq.iter (fun (id, input, expected) -> t.testIntegerObjectWithId (t.testEval input) (expected, id))
+
+    [<Test>]
+    member t.TestClosures() =
+        let input = "
+            let newAdder = fn(x) {
+                fn(y) { x + y };
+            };
+            let addTwo = newAdder(2);
+            addTwo(2);"
+        t.testIntegerObject (t.testEval input) 4L
+
+    [<Test>]
+    member t.TestFunctionAsParam() =
+        let input = "
+            let let add = fn(a, b) { a + b };
+            let applyFunc = fn(a, b, func) { func(a, b) };
+            applyFunc(2, 2, add);"
+        
+        t.testIntegerObject (t.testEval input) 4L

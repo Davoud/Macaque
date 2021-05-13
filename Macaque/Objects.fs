@@ -5,7 +5,7 @@
 
  module Objects =
     
-    type ObjectType = INTEGER | BOOLEAN | NULL | RETURN_VALUE | ERROR
+    type ObjectType = INTEGER | BOOLEAN | NULL | RETURN_VALUE | ERROR | FUNCTION
         
     type Object =
         abstract member Type: ObjectType
@@ -46,8 +46,25 @@
             member self.Type = ERROR
             member self.Inspect() = sprintf "ERROR: %s" message
 
-    type Environment() =
+    type Environment(outer: Environment option) =
         let mutable store: Map<string, Object> = Map.empty
-        member self.Get(name: string) = store.TryFind(name)
+        new() = Environment(None)
+        member self.Outer = outer
+        member self.Get(name: string) = 
+            match store.TryFind(name) with
+            | Some(value) -> Some(value)
+            | None -> match outer with | Some(env) -> env.Get(name) | None -> None
+
         member self.Set(name: string, value: Object) = store <- store.Add(name, value);
-            
+      
+    [<Struct>]
+    type Function(parameters: Ast.Identifier list, body: Ast.BlockStatement, env: Environment) =
+        member self.Parameters = parameters
+        member self.Body = body
+        member self.Env = env
+        interface Object with
+            member self.Type = FUNCTION
+            member self.Inspect() =
+                let paramList = parameters |> Seq.map (sprintf "%O") |> String.concat ", "
+                $"fn({paramList}) {{\n{body}\n}}"
+                

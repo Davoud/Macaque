@@ -6,12 +6,23 @@ open Macaque.Ast
 
 module rec Evaluator =
     
+    type EObject = 
+        | Err of Object
+        | Ok of Object
+
     let NULL = Null() :> Object
     let TRUE = Boolean(true) :> Object
     let FALSE = Boolean(false) :> Object
     
     let inline newError message = Error(message) :> Object
-      
+     
+    let (|IsError|_|) (object: Object) = if object.Type = ERROR then Some(object) else None
+
+    let evale (node: Node) (env: Environment) : EObject = 
+        match eval node env with
+        | obj when obj.Type = ERROR -> Err obj
+        | obj -> Ok obj        
+
     let evalProgram (program: Program) (env: Environment): Object =                       
         let rec evalAll (statements: Statement list) = 
             match statements with
@@ -83,25 +94,76 @@ module rec Evaluator =
         if object = NULL then false
         else if object = TRUE then true
         else if object = FALSE then false
-        else true        
-
-    let ifNotError (object: Object) (f: Object -> Object): Object = 
-        match object with 
-        | obj when obj.Type = ERROR -> obj
-        | obj -> f obj
-               
+        else true           
                
     let evalIfExpresion (ie: IfExpression) (env: Environment) =
-        ifNotError (eval ie.Condition env) (fun cond -> 
-            if isTruthy cond then eval ie.Consequence env
-            else if ie.Alternative.IsSome then eval ie.Alternative.Value env
-            else NULL)
+        match evale ie.Condition env with
+        | Err err -> err
+        | Ok cond -> 
+            if isTruthy cond then 
+                eval ie.Consequence env
+            else if ie.Alternative.IsSome then 
+                eval ie.Alternative.Value env
+            else NULL
 
     let evalIdentifier (node: Identifier) (env: Environment): Object =
         match env.Get(node.Value) with
         | Some(value) -> value
         | None -> newError(sprintf "identifier not found: %s" node.Value)
 
+    let inline evalInfexExpression (infixExp: InfíxExpression) (env: Environment): Object = 
+        match evale infixExp.Left env with
+        | Err err -> err
+        | Ok left -> 
+            match evale infixExp.Right env with
+            | Err err -> err
+            | Ok right -> evalInfixExpression infixExp.Operator left right
+                                                  
+    let evalExpressions (exps: Expression list) (env: Environment): EObject list =        
+        let rec evalAll (expressions) = 
+            expressions |> function
+            | exp :: rest ->
+                match evale exp env with 
+                | Err err -> [Err err] 
+                | Ok evaluated ->  match evalAll rest with | [Err err] -> [Err err] | res -> (Ok evaluated) :: res 
+            | [] -> []        
+        
+        evalAll exps 
+        
+    let unwrapReturnValue (obj: Object): Object = 
+        match obj with 
+        | :? ReturnValue as returnValue -> returnValue.Value
+        | _ -> obj
+
+    let extendFunctionEnv (fn: Function) (args: Object list): Environment = 
+        let env = Environment(Some(fn.Env))
+      
+        let rec loop (prms: Identifier list) (args: Object list) =
+            match prms, args with
+            | prm :: restParams, arg :: restArg -> 
+                env.Set(prm.Value, arg)
+                loop restParams restArg
+            | _ -> ()
+                 
+        loop fn.Parameters args
+
+        env
+
+    let applyFunction (fn: Object) (args: Object list) =
+        match fn with
+        | :? Function as func ->                                 
+            let extendedEnv = extendFunctionEnv func args
+            eval func.Body extendedEnv |> unwrapReturnValue
+        | _ -> newError (sprintf "not a function: %O" fn.Type)
+
+    let evalCallExpression (call: CallExpression) (env: Environment): Object =
+        match evale call.Function env with
+        | Err err -> err
+        | Ok fn ->             
+            match evalExpressions call.Arguments env with
+            | [Err err] -> err
+            | args -> applyFunction fn (args |> List.map (function Ok o -> o | Err e -> e))
+           
     let rec eval (node: Node) (env: Environment): Object = 
       match node with
       | :? Program as program -> evalProgram program env
@@ -110,11 +172,26 @@ module rec Evaluator =
       | :? BooleanExpression as boolean -> if boolean.Value then TRUE else FALSE
       | :? BlockStatement as blockStmt -> evalBlockStatement blockStmt env
       | :? IfExpression as ifExp -> evalIfExpresion ifExp env
-      | :? PrefixExpression as prefixExp -> ifNotError (eval prefixExp.Right env) (evalPrefixExpression prefixExp.Operator)
-      | :? ReturnStatement as returnStmt -> ifNotError (eval returnStmt.ReturnValue env) (fun value -> ReturnValue(value) :> Object)                              
-      | :? InfíxExpression as infixExp -> 
-            ifNotError (eval infixExp.Left env) (fun left -> ifNotError (eval infixExp.Right env) (fun right -> evalInfixExpression infixExp.Operator left right))                                                          
-      | :? LetStatement as letStmt -> ifNotError (eval letStmt.Value env) (fun value -> env.Set(letStmt.Name.Value, value); value)
+      
+      | :? PrefixExpression as prefixExp -> 
+            match evale prefixExp.Right env with 
+            | Err err -> err
+            | Ok right -> evalPrefixExpression prefixExp.Operator right
+
+      | :? ReturnStatement as returnStmt -> 
+            match evale returnStmt.ReturnValue env with
+            | Err err -> err 
+            | Ok value -> ReturnValue(value) :> Object
+            
+      | :? InfíxExpression as infixExp -> evalInfexExpression infixExp env            
+      
+      | :? LetStatement as letStmt -> 
+            match evale letStmt.Value env with 
+            | Err err -> err
+            | Ok value -> env.Set(letStmt.Name.Value, value); NULL
+      
       | :? Identifier as ident -> evalIdentifier ident env
+      | :? FunctionLiteral as funLiteral -> Function(funLiteral.Parameters, funLiteral.Body, env) :> Object
+      | :? CallExpression as callExpression -> evalCallExpression callExpression env
       | _ -> NULL
         
