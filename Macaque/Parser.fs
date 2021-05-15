@@ -107,7 +107,9 @@ module Parsing =
             | true, value -> IntegerLiteral(curToken, value) :> Expression
             | _ -> 
                 errors <- errors @ [$"could not parse {curToken.Literal} as integer"]
-                nilExpression                            
+                nilExpression                 
+        
+        let parseStringLiteral(): Expression = StringLiteral(curToken, curToken.Literal) :> Expression
        
         let parsePrefixExpression(): Expression =
             let currentToken = curToken
@@ -235,6 +237,7 @@ module Parsing =
         do parseIfExpression      |> registerPrefix [IF]
         do parseFunctionLiteral   |> registerPrefix [FUNCTION]
         do parseCallExpresion     |> registerInfix  [LPAREN]
+        do parseStringLiteral     |> registerPrefix [STRING]
                                                        
         member this.Errors = errors
        

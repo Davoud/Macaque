@@ -30,6 +30,7 @@ module Tokens =
         | IF        // if
         | ELSE      // else           
         | RETURN    // return
+        | STRING    // "... "
 
     type Token =
            struct

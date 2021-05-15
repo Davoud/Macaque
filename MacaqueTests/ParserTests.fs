@@ -54,12 +54,21 @@ open Macaque.Parsing
     boolExp.Value |> should equal value
     il.TokenLiteral() |> should equal $"{value}"
 
+  member this.testStringLiteral (il: Expression) (value: string): unit =
+    let strExp = il |> this.asInstanceOf<StringLiteral>
+    strExp.Value |> should equal value
+    il.TokenLiteral() |> should equal value
+
   member this.TestLiteralExperssion(exp: Expression) (expected: obj) =
     match expected with 
     | :? int as i -> this.testIntegerLiteral exp i
     | :? bool as b -> this.testBoolean exp b
     | :? int64 as v -> this.testIntegerLiteral exp (int v)
-    | :? string as s -> this.testIdentifer exp s
+    | :? string as s -> 
+         match exp with 
+         | :? Identifier -> this.testIdentifer exp s
+         | :? StringLiteral -> this.testStringLiteral exp s
+         | _ -> failwith $"type of exp not handled. got {obj}"
     | _ -> failwith $"type of exp not handled. got {obj}"
 
   member this.TestInfixExpressions (exp: Expression) (left: obj) (oprator: string) (right: obj): unit =
@@ -84,6 +93,13 @@ open Macaque.Parsing
     let stmt = this.asInstanceOf<LetStatement> program.Statements.Head
     stmt.Name.Value |> should equal "x"   
     this.TestInfixExpressions stmt.Value 5 "*" 4
+
+    let pstr = parse @"let x = ""das gefällt mir"" + ""sehr gut""" 1
+    let strStmt = this.asInstanceOf<LetStatement> pstr.Statements.Head
+    strStmt.Name.Value |> should equal "x"
+    this.TestInfixExpressions strStmt.Value "das gefällt mir" "+" "sehr gut"
+
+
 
   [<Test>]
   member this.TestReturnStatement() =
@@ -281,3 +297,9 @@ open Macaque.Parsing
     t.TestInfixExpressions exp.Arguments.[1] 2 "*" 3
     t.TestInfixExpressions exp.Arguments.[2] 4 "+" 5
     
+  [<Test>]
+  member t.TestStringLiteral() =
+    let input = "\"an string example\""
+    let exp = t.asExpression<StringLiteral> input
+    exp.Token.Type |> should equal STRING
+    exp.Value |> should equal "an string example"

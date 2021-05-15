@@ -27,7 +27,10 @@ open Macaque.Tokens
          }
          
          10 == 10;
-         10 != 9;"
+         10 != 9;
+         let str = \"string\";
+         \"an string with 28 characters\" +"
+
 
     let tests = [|
            (LET, "let");   (IDENT, "five");    (ASSIGN, "=");  (INT, "5");     (SEMICOLON, ";");
@@ -44,6 +47,8 @@ open Macaque.Tokens
            (RBRACE, "}");  (ELSE, "else");     (LBRACE, "{");  (RETURN, "return"); (FALSE, "false"); (SEMICOLON, ";"); 
            (RBRACE, "}");  (INT, "10");        (EQ, "==");     (INT, "10");    (SEMICOLON, ";");
            (INT, "10");    (NOT_EQ, "!=");     (INT, "9");     (SEMICOLON, ";");
+           (LET, "let");   (IDENT, "str");     (ASSIGN, "=");  (STRING, "string"); (SEMICOLON, ";");
+           (STRING, "an string with 28 characters"); (PLUS, "+");
        |]
 
     [<Test>]

@@ -80,11 +80,18 @@ module rec Evaluator =
         | "!=" -> nativeBoolToBooleanObject(left.Value <> right.Value)
         | _ -> newError (sprintf "unknown operator: %O %s %O" ((left :> Object).Type) operator ((left :> Object).Type))
     
+    let evalStringInfixExpression (operator: string) (left: ``String``) (right: ``String``) =
+        match operator with
+        "+" -> ``String``(left.Value + right.Value) :> Object
+        | "==" -> nativeBoolToBooleanObject(left.Value = right.Value)
+        | "!=" -> nativeBoolToBooleanObject(left.Value <> right.Value)
+        | _ -> newError (sprintf "unknown operator: %O %s %O" ((left :> Object).Type) operator ((left :> Object).Type))
 
     let evalInfixExpression (operator: string) (left: Object) (right: Object) = 
         match left, right with
         | (l, r) when l.Type <> r.Type -> newError (sprintf "type mismatch: %O %s %O" (l.Type) operator (r.Type))
-        | (:? Integer as leftInt), (:? Integer as rightInt) -> evalIntegerInfixExpression operator leftInt rightInt                    
+        | (:? Integer as leftInt), (:? Integer as rightInt) -> evalIntegerInfixExpression operator leftInt rightInt 
+        | (:? ``String`` as leftStr), (:? ``String`` as rightStr) -> evalStringInfixExpression operator leftStr rightStr
         | _ -> match operator with
                | "==" -> nativeBoolToBooleanObject(left = right)
                | "!=" -> nativeBoolToBooleanObject(left <> right)
@@ -169,6 +176,7 @@ module rec Evaluator =
       | :? Program as program -> evalProgram program env
       | :? ExpressionStatement as expressionStmt -> eval expressionStmt.Expression env
       | :? IntegerLiteral as integer -> Integer(integer.Value) :> Object 
+      | :? StringLiteral as str -> ``String``(str.Value) :> Object
       | :? BooleanExpression as boolean -> if boolean.Value then TRUE else FALSE
       | :? BlockStatement as blockStmt -> evalBlockStatement blockStmt env
       | :? IfExpression as ifExp -> evalIfExpresion ifExp env

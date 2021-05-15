@@ -29,6 +29,9 @@ open Macaque.Ast
     member t.testBooleanObject (obj: Object) (expected: bool) =
         (t.asInstanceOf<Boolean> obj).Value |> should equal expected
 
+    member t.testStringObject (obj: Object) (expected: string) =
+        (t.asInstanceOf<``String``> obj).Value |> should equal expected
+
     [<Test>]
     member t.TestEvalIntegerExpression() =
         [| 
@@ -133,6 +136,8 @@ open Macaque.Ast
             6, "if (10 > 1)  true + false; }", "unknown operator: BOOLEAN + BOOLEAN";            
             7, "if (10 > 1) { if (10 > 1) { return true + false; }return 1; }", "unknown operator: BOOLEAN + BOOLEAN"; 
             8, "foobar", "identifier not found: foobar";
+            9, "5 + \"abc\"", "type mismatch: INTEGER + STRING";
+            10, """ -"abc" """, "unknown operator: -STRING";
         |]
         |> Seq.iter (fun (id, input, expectedMessage) -> 
             let evaluated = input |> t.testEval
@@ -187,3 +192,22 @@ open Macaque.Ast
             applyFunc(2, 2, add);"
         
         t.testIntegerObject (t.testEval input) 4L
+
+    [<Test>]
+    member t.TestStringExpressions() =
+        [| 
+            """ "a" + "b" """, "ab";
+            """ "a" + "" """, "a";
+            """ "" + "b" """, "b";
+            """ "a" + "b" + "c" """, "abc";
+            """ "a" + ("b" + "c") """, "abc";
+        |]
+        |> Seq.iter (fun (input, expected) -> t.testStringObject (t.testEval input) expected)
+
+        [|
+            """ "a" == "b"; """, false;
+            """ "a" == "a"; """, true;
+            """ "abc" != "abc"; """, false;
+            """ "abc" != "cba"; """, true;
+        |]
+        |> Seq.iter (fun (input, expected) -> t.testBooleanObject (t.testEval input) expected)

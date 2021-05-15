@@ -5,20 +5,26 @@
 
  module Objects =
     
-    type ObjectType = INTEGER | BOOLEAN | NULL | RETURN_VALUE | ERROR | FUNCTION
+    type ObjectType = INTEGER | BOOLEAN | NULL | RETURN_VALUE | ERROR | FUNCTION | STRING
         
     type Object =
         abstract member Type: ObjectType
         abstract member Inspect: unit -> string
 
-    [<Struct>]
+    //[<Struct>]
     type Integer(value: int64) =
         member self.Value = value
         interface Object with   
             member self.Type = INTEGER
             member self.Inspect() = sprintf "%d" value
 
-    [<Struct>]
+    type ``String``(value: string) =
+        member self.Value = value
+        interface Object with
+            member self.Type = STRING
+            member self.Inspect() = value
+
+    //[<Struct>]
     type Boolean(value: bool) =
         member self.Value = value
         interface Object with 
@@ -32,14 +38,14 @@
             member self.Inspect() = "null"
       end
 
-    [<Struct>]
+    //[<Struct>]
     type ReturnValue(value: Object) =
         member self.Value = value
         interface Object with
             member self.Type = RETURN_VALUE
             member self.Inspect() = sprintf "%s" (value.Inspect())
         
-    [<Struct>]
+    //[<Struct>]
     type Error(message: string) =
         member self.Message = message
         interface Object with
@@ -57,7 +63,7 @@
 
         member self.Set(name: string, value: Object) = store <- store.Add(name, value);
       
-    [<Struct>]
+    //[<Struct>]
     type Function(parameters: Ast.Identifier list, body: Ast.BlockStatement, env: Environment) =
         member self.Parameters = parameters
         member self.Body = body
