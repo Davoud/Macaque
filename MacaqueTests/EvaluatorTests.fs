@@ -8,9 +8,12 @@ open Macaque.Evaluator
 open Macaque
 open Macaque.Ast
 
+
  [<TestFixture>]    
  type EvaluatorTests() =
-        
+               
+    let back2double (s: string) = s.Replace('`', '"')
+
     member _.asInstanceOf<'T>(o: obj): 'T = o |> should be instanceOfType<'T>; o :?> 'T
 
     member _.asInstanceOf<'T>(o: obj, id: int): 'T = 
@@ -24,7 +27,7 @@ open Macaque.Ast
         (t.asInstanceOf<Integer> obj).Value |> should equal expected
 
     member t.testIntegerObjectWithId (obj: Object) (expected: int64, id: int) =      
-        ((t.asInstanceOf<Integer> obj).Value, id) |> should equal (expected, id)
+        ((t.asInstanceOf<Integer> (obj, id)).Value, id) |> should equal (expected, id)
 
     member t.testBooleanObject (obj: Object) (expected: bool) =
         (t.asInstanceOf<Boolean> obj).Value |> should equal expected
@@ -196,18 +199,78 @@ open Macaque.Ast
     [<Test>]
     member t.TestStringExpressions() =
         [| 
-            """ "a" + "b" """, "ab";
-            """ "a" + "" """, "a";
-            """ "" + "b" """, "b";
-            """ "a" + "b" + "c" """, "abc";
-            """ "a" + ("b" + "c") """, "abc";
+            " `a` + `b` ", "ab";
+            " `a` + ``  ", "a";
+            " `` + `b`  ", "b";
+            " `a` + `b` + `c`   ", "abc";
+            " `a` + (`b` + `c`) ", "abc";
         |]
-        |> Seq.iter (fun (input, expected) -> t.testStringObject (t.testEval input) expected)
+        |> Seq.iter (fun (input, expected) -> t.testStringObject (t.testEval (back2double input)) expected)
 
         [|
-            """ "a" == "b"; """, false;
-            """ "a" == "a"; """, true;
-            """ "abc" != "abc"; """, false;
-            """ "abc" != "cba"; """, true;
+            " `a` == `b`; ", false;
+            " `a` == `a`; ", true;
+            " `abc` != `abc`; ", false;
+            " `abc` != `cba`; ", true;
         |]
-        |> Seq.iter (fun (input, expected) -> t.testBooleanObject (t.testEval input) expected)
+        |> Seq.iter (fun (input, expected) -> t.testBooleanObject (t.testEval (back2double input)) expected)
+
+    
+
+    [<Test>]
+    member t.TestBuiltinFunction() =
+        [|
+            1, "len(``)", 0L :> obj;
+            2, "len(`four`)", 4L :> obj;
+            3, "len(`hello world`)", 11L :> obj;
+            4, "len(1)", "argument to `len` not supported, got INTEGER" :> obj;
+            5, "len(`one`, `two`)", "wrong number of arguments. got=2, want=1" :> obj;
+            6, "len([1, 2, 4])", 3L :> obj;
+            7, "len([])", 0L :> obj;
+            8, "len([`one`])", 1L :> obj;
+            9, "first([1, 2, 3])", 1L :> obj;
+            10, "first([1000])", 1000L :> obj;
+            11, "first([])", NULL :> obj; 
+            12, "last([1, 2, 3])", 3L :> obj;
+            13, "last([1000])", 1000L :> obj;
+            14, "last([])", NULL :> obj;
+        |]
+        |> Seq.iter (fun (id, input, expected) -> 
+            let evaluated = t.testEval (back2double input)
+            match expected with
+            | :? int64 as i -> t.testIntegerObjectWithId evaluated (i, id)
+            | :? string as errorMsg -> 
+                let err = t.asInstanceOf<Error> (evaluated, id)
+                err.Message |> should equal errorMsg
+            | :? Object as object -> evaluated |> should equal expected
+            | _ -> ()
+        )
+
+    [<Test>]
+    member t.TestArrayLiterals() =        
+        let result = t.asInstanceOf<Array> (t.testEval "[1, 2 * 2, 3 + 3]")
+        result.Elements.Length |> should equal 3
+        t.testIntegerObject result.Elements.[0] 1L
+        t.testIntegerObject result.Elements.[1] 4L
+        t.testIntegerObject result.Elements.[2] 6L
+
+    [<Test>]
+    member t.TestArrayIndexExpressions() =
+        [|
+            1, "[1, 2, 3][0]", 1L;
+            2, "[1, 2, 3][1]", 2L;
+            3, "[1, 2, 3][2]", 3L;
+            4, "let i = 0; [1][i];", 1L;
+            5, "[1, 2, 3][1 + 1];", 3L;
+            6, "let myArray = [1, 2, 3]; myArray[2];", 3L;
+            7, "let myArray = [1, 2, 3]; myArray[0] + myArray[1] + myArray[2];", 6L;
+            8, "let myArray = [1, 2, 3]; let i = myArray[0]; myArray[i]", 2L;            
+        |]
+        |>
+        Seq.iter (fun (id, input, exptected) -> t.testIntegerObjectWithId (t.testEval input) (exptected, id))
+
+        [|
+            "[1, 2, 3][3]", NULL;
+            "[1, 2, 3][-1]", NULL;
+        |]
+        |> Seq.iter (fun (input, expected) -> (t.testEval input) |> should equal expected)

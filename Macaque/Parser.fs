@@ -5,29 +5,16 @@ open Macaque.Ast
 open System.Collections.Generic
 
 module Parsing =
-
-    [<Literal>] 
-    let LOWEST = 1us
-
-    [<Literal>] 
-    let EQUALS = 2us        // ==
-
-    [<Literal>] 
-    let LESSGREATER = 3us   // > OR <
-
-    [<Literal>] 
-    let SUM = 4us           // +
-
-    [<Literal>] 
-    let PRODUCT = 5us       // *
-
-    [<Literal>] 
-    let PREFIX = 6us        // -X OR !X
-
-    [<Literal>] 
-    let CALL = 7us          // myFunction(X)
-
-    type Precedence = LOWEST | EQUALS | LESSGREATER | SUM | PRODUCT | PREFIX | CALL
+        
+    type Precedence = 
+        | LOWEST
+        | EQUALS
+        | LESSGREATER
+        | SUM
+        | PRODUCT
+        | PREFIX
+        | CALL
+        | INDEX
 
     type PrefixParseFn = unit -> Expression
     type InfixParseFn = Expression -> Expression
@@ -50,7 +37,8 @@ module Parsing =
             MINUS,      SUM;
             ASTRISK,    PRODUCT;
             SLASH,      PRODUCT;
-            LPAREN,     CALL;]
+            LPAREN,     CALL;
+            LBRACKET,   INDEX]
             
         let nilExpression = { new Expression with
             member this.TokenLiteral() = "???"
@@ -211,8 +199,8 @@ module Parsing =
                 if expectPeek LBRACE then FunctionLiteral(ct, parameters, parseBlockStatement()) :> Expression else nilExpression
             else nilExpression
 
-        let parseCallArguments(): Expression list =
-            if peekTokenIs RPAREN then 
+        let parseExpressionList(endToken: TokenType): Expression list =
+            if peekTokenIs endToken then 
                 nextToken() 
                 []
             else
@@ -222,11 +210,19 @@ module Parsing =
                     nextToken()
                     nextToken()
                     args <- args @ [parseExpression LOWEST]
-                if expectPeek RPAREN then args else []
-
+                if expectPeek endToken then args else []
     
         let parseCallExpresion(func: Expression): Expression =             
-            CallExpression(curToken, func, parseCallArguments()) :> Expression
+            CallExpression(curToken, func, parseExpressionList RPAREN) :> Expression
+
+        let parseArrayLiteral(): Expression = ArrayLiteral(curToken, parseExpressionList RBRACKET |> List.toArray) :> Expression
+
+        let parseIndexExpression(left: Expression): Expression =
+            let ct = curToken
+            nextToken()
+            let exp = IndexExpression(curToken, left, parseExpression LOWEST)
+            if expectPeek RBRACKET then exp :> Expression else nilExpression
+
 
         do parseIdentifier        |> registerPrefix [IDENT]
         do parseIntegerLiteral    |> registerPrefix [INT]
@@ -238,6 +234,8 @@ module Parsing =
         do parseFunctionLiteral   |> registerPrefix [FUNCTION]
         do parseCallExpresion     |> registerInfix  [LPAREN]
         do parseStringLiteral     |> registerPrefix [STRING]
+        do parseArrayLiteral      |> registerPrefix [LBRACKET]
+        do parseIndexExpression   |> registerInfix  [LBRACKET]
                                                        
         member this.Errors = errors
        

@@ -31,6 +31,8 @@ module Tokens =
         | ELSE      // else           
         | RETURN    // return
         | STRING    // "... "
+        | LBRACKET  // "["
+        | RBRACKET  // "]"
 
     type Token =
            struct

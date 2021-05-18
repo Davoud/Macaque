@@ -240,6 +240,10 @@ open Macaque.Parsing
            "add(a, b, 1, 2 * 3, 4 + 5, add(6, 7 * 8))", "add(a, b, 1, (2 * 3), (4 + 5), add(6, (7 * 8)))";
            
            "add(a + b + c * d / f + g)", "add((((a + b) + ((c * d) / f)) + g))";
+
+           "a * [1, 2, 3, 4][b * c] * d", "((a * ([1, 2, 3, 4][(b * c)])) * d)";
+
+           "add(a * b[2], b[1], 2 * [1, 2][1])", "add((a * (b[2])), (b[1]), (2 * ([1, 2][1])))";
            
         |]
         |> Array.iter (fun (input, exprected) -> (parse input -1).ToString() |> should equal exprected)
@@ -303,3 +307,17 @@ open Macaque.Parsing
     let exp = t.asExpression<StringLiteral> input
     exp.Token.Type |> should equal STRING
     exp.Value |> should equal "an string example"
+
+  [<Test>]
+  member t.TestArrayLiterals() =    
+    let arr = t.asExpression<ArrayLiteral> "[1, 2 * 2, 3 + 3]"
+    arr.Elements.Length |> should equal 3
+    t.testIntegerLiteral   arr.Elements.[0] 1
+    t.TestInfixExpressions arr.Elements.[1] 2 "*" 2
+    t.TestInfixExpressions arr.Elements.[2] 3 "+" 3
+  
+  [<Test>]
+  member t.TestParsingIndexExpression() =
+    let indexExp = t.asExpression<IndexExpression> "myArray[1 + 1]"
+    t.testIdentifer indexExp.Left "myArray"
+    t.TestInfixExpressions indexExp.Index 1 "+" 1

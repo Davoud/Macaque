@@ -76,7 +76,8 @@ type Lexer (input: string) as self   =
             | '!' -> if NextIs '=' then Read NOT_EQ "!=" else Read BANG "!"
             | '"' -> Token(STRING, ReadString())
             | '\000' -> Read EOF ""
-
+            | '[' -> Read LBRACKET "["
+            | ']' -> Read RBRACKET "]"
             | c when IsLetter(c) -> let ident = ReadIndentifier()                        
                                     Token(lookupIdent(ident), ident)
 

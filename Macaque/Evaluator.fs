@@ -15,7 +15,38 @@ module rec Evaluator =
     let FALSE = Boolean(false) :> Object
     
     let inline newError message = Error(message) :> Object
-     
+    let inline newArgLengthError length = newError (sprintf "wrong number of arguments. got=%i, want=1" length) 
+
+    let len (args: Object array): Object =                
+        match args with
+        | [| arg |] -> 
+            match arg with
+            | :? ``String`` as sl -> Integer(int64 sl.Value.Length) :> Object
+            | :? Array as arr -> Integer(int64 arr.Elements.Length) :> Object
+            | other -> newError(sprintf "argument to `len` not supported, got %O" other.Type)
+        | _ -> newArgLengthError args.Length
+                
+    let first (args: Object array): Object =
+        match args with
+        | [| arg |] -> 
+            match arg with
+            | :? Array as arr -> match arr.Elements |> Array.tryHead with Some(head) -> head | None -> NULL
+            | _ -> newError (sprintf "argument to `first` must be ARRAY, got %O" arg.Type)            
+        | _ -> newArgLengthError args.Length
+        
+    let last (args: Object array): Object =
+        match args with
+        | [| arg |] -> 
+            match arg with
+            | :? Array as arr -> match arr.Elements |> Array.tryLast with Some(lastElem) -> lastElem | None -> NULL
+            | _ -> newError (sprintf "argument to `last` must be ARRAY, got %O" arg.Type)            
+        | _ -> newArgLengthError args.Length
+
+    let builtIns = Map [ 
+        nameof len,   Builtin(len); 
+        nameof first, Builtin(first);
+        nameof last,  Builtin(last) ]
+         
     let (|IsError|_|) (object: Object) = if object.Type = ERROR then Some(object) else None
 
     let evale (node: Node) (env: Environment) : EObject = 
@@ -116,7 +147,10 @@ module rec Evaluator =
     let evalIdentifier (node: Identifier) (env: Environment): Object =
         match env.Get(node.Value) with
         | Some(value) -> value
-        | None -> newError(sprintf "identifier not found: %s" node.Value)
+        | None -> 
+            match builtIns.TryFind(node.Value) with
+            | Some(builtin) -> builtin :> Object
+            | None -> newError(sprintf "identifier not found: %s" node.Value)
 
     let inline evalInfexExpression (infixExp: InfíxExpression) (env: Environment): Object = 
         match evale infixExp.Left env with
@@ -161,6 +195,9 @@ module rec Evaluator =
         | :? Function as func ->                                 
             let extendedEnv = extendFunctionEnv func args
             eval func.Body extendedEnv |> unwrapReturnValue
+        | :? Builtin as builtin ->
+            let func = builtin.Fn
+            func(args |> List.toArray)
         | _ -> newError (sprintf "not a function: %O" fn.Type)
 
     let evalCallExpression (call: CallExpression) (env: Environment): Object =
@@ -171,14 +208,30 @@ module rec Evaluator =
             | [Err err] -> err
             | args -> applyFunction fn (args |> List.map (function Ok o -> o | Err e -> e))
            
+    let evalArrayIndexExpression (array: Array) (index: Integer): Object =
+        let max = array.Elements.Length - 1
+        let idx = int index.Value
+        if idx < 0 || idx > max then NULL else array.Elements.[idx]
+        
+    let evalIndexExpression (left: Object) (index: Object): Object =
+        match left.Type, index.Type with 
+        | ARRAY, INTEGER -> evalArrayIndexExpression (left :?> Array) (index :?> Integer)
+        | _ -> newError(sprintf "index operator not supported: %O" left.Type)
+
     let rec eval (node: Node) (env: Environment): Object = 
       match node with
       | :? Program as program -> evalProgram program env
+      
       | :? ExpressionStatement as expressionStmt -> eval expressionStmt.Expression env
+      
       | :? IntegerLiteral as integer -> Integer(integer.Value) :> Object 
+      
       | :? StringLiteral as str -> ``String``(str.Value) :> Object
+      
       | :? BooleanExpression as boolean -> if boolean.Value then TRUE else FALSE
+      
       | :? BlockStatement as blockStmt -> evalBlockStatement blockStmt env
+      
       | :? IfExpression as ifExp -> evalIfExpresion ifExp env
       
       | :? PrefixExpression as prefixExp -> 
@@ -196,10 +249,26 @@ module rec Evaluator =
       | :? LetStatement as letStmt -> 
             match evale letStmt.Value env with 
             | Err err -> err
-            | Ok value -> env.Set(letStmt.Name.Value, value); NULL
-      
+            | Ok value -> env.Set(letStmt.Name.Value, value); NULL      
+
       | :? Identifier as ident -> evalIdentifier ident env
+      
       | :? FunctionLiteral as funLiteral -> Function(funLiteral.Parameters, funLiteral.Body, env) :> Object
+      
       | :? CallExpression as callExpression -> evalCallExpression callExpression env
+      
+      | :? ArrayLiteral as arrLiteral ->
+            match evalExpressions (Array.toList arrLiteral.Elements) env with
+            | [Err err] -> err
+            | res -> Array(res |> List.map(function Ok o -> o | Err e -> e) |> List.toArray) :> Object
+
+      | :? IndexExpression as indexExp ->
+            match evale indexExp.Left env with
+            | Err err -> err
+            | Ok left -> 
+                match evale indexExp.Index env with
+                | Err err -> err
+                | Ok index -> evalIndexExpression left index
+                 
       | _ -> NULL
         

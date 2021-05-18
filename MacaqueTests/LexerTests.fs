@@ -29,7 +29,8 @@ open Macaque.Tokens
          10 == 10;
          10 != 9;
          let str = \"string\";
-         \"an string with 28 characters\" +"
+         \"an string with 28 characters\" +
+         [1, 2];"
 
 
     let tests = [|
@@ -49,6 +50,8 @@ open Macaque.Tokens
            (INT, "10");    (NOT_EQ, "!=");     (INT, "9");     (SEMICOLON, ";");
            (LET, "let");   (IDENT, "str");     (ASSIGN, "=");  (STRING, "string"); (SEMICOLON, ";");
            (STRING, "an string with 28 characters"); (PLUS, "+");
+           (LBRACKET, "["); (INT, "1");        (COMMA, ",");   (INT, "2");     (RBRACKET, "]"); (SEMICOLON, ";");
+           (EOF, "")
        |]
 
     [<Test>]
@@ -56,11 +59,10 @@ open Macaque.Tokens
         
         let lexer = Lexer(input)
                                  
-        tests |> Array.map(fun (tokenType, literal) ->
+        tests |> Array.iter (fun (tokenType, literal) ->
             let token = lexer.NextToken()            
             token.Type |> should equal tokenType 
-            token.Literal |> should equal literal
-        ) |> ignore   
+            token.Literal |> should equal literal) 
         
     
 

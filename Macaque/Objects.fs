@@ -5,13 +5,14 @@
 
  module Objects =
     
-    type ObjectType = INTEGER | BOOLEAN | NULL | RETURN_VALUE | ERROR | FUNCTION | STRING
+    type ObjectType = INTEGER | BOOLEAN | NULL | RETURN_VALUE | ERROR | FUNCTION | STRING | BUILTIN | ARRAY
         
     type Object =
         abstract member Type: ObjectType
         abstract member Inspect: unit -> string
 
-    //[<Struct>]
+    type BuiltinFunction = Object array -> Object
+
     type Integer(value: int64) =
         member self.Value = value
         interface Object with   
@@ -24,7 +25,6 @@
             member self.Type = STRING
             member self.Inspect() = value
 
-    //[<Struct>]
     type Boolean(value: bool) =
         member self.Value = value
         interface Object with 
@@ -38,14 +38,12 @@
             member self.Inspect() = "null"
       end
 
-    //[<Struct>]
     type ReturnValue(value: Object) =
         member self.Value = value
         interface Object with
             member self.Type = RETURN_VALUE
             member self.Inspect() = sprintf "%s" (value.Inspect())
         
-    //[<Struct>]
     type Error(message: string) =
         member self.Message = message
         interface Object with
@@ -63,7 +61,6 @@
 
         member self.Set(name: string, value: Object) = store <- store.Add(name, value);
       
-    //[<Struct>]
     type Function(parameters: Ast.Identifier list, body: Ast.BlockStatement, env: Environment) =
         member self.Parameters = parameters
         member self.Body = body
@@ -73,4 +70,15 @@
             member self.Inspect() =
                 let paramList = parameters |> Seq.map (sprintf "%O") |> String.concat ", "
                 $"fn({paramList}) {{\n{body}\n}}"
-                
+        
+    type Builtin(fn: BuiltinFunction) =
+        member self.Fn = fn
+        interface Object with
+            member self.Type = BUILTIN
+            member self.Inspect() = "builtin function"
+
+    type Array(elements: Object array) =
+        member self.Elements = elements
+        interface Object with
+            member self.Type = ARRAY
+            member self.Inspect() = sprintf "[%s]" (elements |> Seq.map (fun el -> el.Inspect()) |> String.concat ", ")
