@@ -37,10 +37,25 @@ module Repl =
         | result when result = NULL -> () 
         | result -> printfn "\n%s\n" (result.Inspect())
                                    
+    let load fileName = 
+        try 
+            IO.File.ReadAllText fileName
+        with
+            | exp -> 
+                Console.ForegroundColor <- ConsoleColor.Red
+                printfn "%A" exp
+                $"\"{exp.Message}\""
+
 
     let rec nextLine() =
         match Console.ReadLine() with
-        | line when line = ";;" -> 0      
+        | line when line = ";;" -> 0  
+        | line when line.StartsWith "#load " -> 
+                  line.Substring 6 |> load |> parse
+                  Console.ResetColor() 
+                  prompt()
+                  nextLine()
+
         | line -> parse line   
                   Console.ResetColor() 
                   prompt()

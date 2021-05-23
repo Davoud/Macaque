@@ -15,6 +15,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="ObjectsTests.fs" />
     <Compile Include="EvaluatorTests.fs" />
     <Compile Include="ParserTests.fs" />
     <Compile Include="LexerTests.fs" />

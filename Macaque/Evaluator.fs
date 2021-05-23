@@ -15,37 +15,60 @@ module rec Evaluator =
     let FALSE = Boolean(false) :> Object
     
     let inline newError message = Error(message) :> Object
-    let inline newArgLengthError length = newError (sprintf "wrong number of arguments. got=%i, want=1" length) 
+    
+    let inline exactlyOne (args: Object array): EObject =
+        match args with
+        | [| arg |] -> arg |> Ok
+        | _ -> (sprintf "wrong number of arguments. got=%i, want=1" args.Length) |> newError |> Err
 
     let len (args: Object array): Object =                
-        match args with
-        | [| arg |] -> 
+       match exactlyOne args with
+       | Err err -> err
+       | Ok arg -> 
             match arg with
             | :? ``String`` as sl -> Integer(int64 sl.Value.Length) :> Object
             | :? Array as arr -> Integer(int64 arr.Elements.Length) :> Object
             | other -> newError(sprintf "argument to `len` not supported, got %O" other.Type)
-        | _ -> newArgLengthError args.Length
+       
                 
     let first (args: Object array): Object =
-        match args with
-        | [| arg |] -> 
+        match exactlyOne args with
+        | Err err -> err
+        | Ok arg -> 
             match arg with
             | :? Array as arr -> match arr.Elements |> Array.tryHead with Some(head) -> head | None -> NULL
             | _ -> newError (sprintf "argument to `first` must be ARRAY, got %O" arg.Type)            
-        | _ -> newArgLengthError args.Length
         
     let last (args: Object array): Object =
-        match args with
-        | [| arg |] -> 
+        match exactlyOne args with
+        | Err err -> err
+        | Ok arg -> 
             match arg with
             | :? Array as arr -> match arr.Elements |> Array.tryLast with Some(lastElem) -> lastElem | None -> NULL
             | _ -> newError (sprintf "argument to `last` must be ARRAY, got %O" arg.Type)            
-        | _ -> newArgLengthError args.Length
+
+    let rest (args: Object array): Object =
+        match exactlyOne args with
+        | Err err -> err
+        | Ok arg -> 
+            match arg with
+            | :? Array as arr -> Array(if arr.Elements.Length > 0 then arr.Elements |> Array.tail else Array.empty) :> Object
+            | _ -> newError (sprintf "argument to `rest` must be ARRAY, got %O" arg.Type)        
+
+    let push (args: Object array): Object =
+        if args.Length <> 2 then 
+            (sprintf "wrong number of arguments. got=%i, want=2" args.Length) |> newError         
+        else match args.[0] with
+             | :? Array as arr -> Array(Array.append arr.Elements [| args.[1] |]) :> Object
+             | other -> (sprintf "argument to `push` must be ARRAY, got %O" other.Type) |> newError                     
+
 
     let builtIns = Map [ 
         nameof len,   Builtin(len); 
         nameof first, Builtin(first);
-        nameof last,  Builtin(last) ]
+        nameof last,  Builtin(last);
+        nameof rest,  Builtin(rest);
+        nameof push,  Builtin(push); ]
          
     let (|IsError|_|) (object: Object) = if object.Type = ERROR then Some(object) else None
 

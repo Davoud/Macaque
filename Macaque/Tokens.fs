@@ -33,6 +33,7 @@ module Tokens =
         | STRING    // "... "
         | LBRACKET  // "["
         | RBRACKET  // "]"
+        | COLON     // ":"
 
     type Token =
            struct

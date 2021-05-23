@@ -7,6 +7,9 @@
     
     type ObjectType = INTEGER | BOOLEAN | NULL | RETURN_VALUE | ERROR | FUNCTION | STRING | BUILTIN | ARRAY
         
+    type HashKey = { Type: ObjectType; Value: uint64 }
+        
+
     type Object =
         abstract member Type: ObjectType
         abstract member Inspect: unit -> string
@@ -15,18 +18,21 @@
 
     type Integer(value: int64) =
         member self.Value = value
+        member self.HashKey = { Type = INTEGER; Value = uint64 (value) }  
         interface Object with   
             member self.Type = INTEGER
             member self.Inspect() = sprintf "%d" value
 
     type ``String``(value: string) =
         member self.Value = value
+        member self.HashKey = { Type = STRING; Value = uint64 (value.GetHashCode()) }            
         interface Object with
             member self.Type = STRING
             member self.Inspect() = value
 
     type Boolean(value: bool) =
         member self.Value = value
+        member self.HashKey = { Type = BOOLEAN; Value = uint64 (if value then 1 else 0)}
         interface Object with 
             member self.Type = BOOLEAN
             member self.Inspect() = sprintf "%b" value

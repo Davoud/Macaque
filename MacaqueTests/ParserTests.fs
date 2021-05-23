@@ -10,6 +10,8 @@ open Macaque.Parsing
  [<TestFixture>]    
  type Tests() =
   
+  let quote (s: string) = s.Replace('`', '"')
+
   let rec printErrors (erros: string list) =
     match erros with 
         | head :: tail -> 
@@ -321,3 +323,35 @@ open Macaque.Parsing
     let indexExp = t.asExpression<IndexExpression> "myArray[1 + 1]"
     t.testIdentifer indexExp.Left "myArray"
     t.TestInfixExpressions indexExp.Index 1 "+" 1
+
+  [<Test>]
+  member t.TestParsingHashLiteralsStringKeys() =
+    let hash = t.asExpression<HashLiteral> (quote "{`one`: 1, `two`: 2, `three`: 3}")
+    hash.Pairs.Count |> should equal 3    
+    let expected = Map [ "one", 1; "two", 2; "three", 3]
+    for KeyValue(key, value) in hash.Pairs do
+        let literal = t.asInstanceOf<StringLiteral> key
+        match expected.TryFind literal.Value with
+        | Some(expectedValue) -> t.testIntegerLiteral value expectedValue
+        | None -> failwith (sprintf "No value for key %s found" literal.Value)
+        
+  [<Test>]
+  member t.TestParsingEmptyHashLiteral() =
+    let hash = t.asExpression<HashLiteral> "{}"
+    hash.Pairs.Count |> should equal 0
+   
+  [<Test>]
+  member t.TestParsingHashLiteralsWithExpressions() =
+    let hash = t.asExpression<HashLiteral> (quote "{`one`: 0 + 1, `two`: 10 - 8, `three`: 15 / 5}")
+    hash.Pairs.Count |> should equal 3
+    let tests = Map [
+        "one", fun(e: Expression) -> t.TestInfixExpressions e 0 "+" 1;
+        "two", fun(e: Expression) -> t.TestInfixExpressions e 10 "-" 8;
+        "three", fun(e: Expression) -> t.TestInfixExpressions e 15 "/" 5;]
+
+    for KeyValue(key, value) in hash.Pairs do
+        let literal = t.asInstanceOf<StringLiteral> key
+        match tests.TryFind (literal.Value) with
+        | Some(testFunc) -> testFunc value
+        | None -> failwith (sprintf "No test function for key %s found" literal.Value)
+    

@@ -74,10 +74,12 @@ type Lexer (input: string) as self   =
             | '>' -> Read GT ">"
             | '=' -> if NextIs '=' then Read EQ "==" else Read ASSIGN "="  
             | '!' -> if NextIs '=' then Read NOT_EQ "!=" else Read BANG "!"
-            | '"' -> Token(STRING, ReadString())
-            | '\000' -> Read EOF ""
+            | '"' -> Token(STRING, ReadString())            
             | '[' -> Read LBRACKET "["
             | ']' -> Read RBRACKET "]"
+            | ':' -> Read COLON ":"
+            | '\000' -> Read EOF ""
+
             | c when IsLetter(c) -> let ident = ReadIndentifier()                        
                                     Token(lookupIdent(ident), ident)
 

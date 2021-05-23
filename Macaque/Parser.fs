@@ -42,7 +42,9 @@ module Parsing =
             
         let nilExpression = { new Expression with
             member this.TokenLiteral() = "???"
-            member this.String() = "???" }
+            member this.String() = "???" 
+            member this.CompareTo(other: obj) = if obj.ReferenceEquals(this, other) then 0 else -1 }
+                
     
         let nextToken(): unit = 
             curToken <- peekToken
@@ -223,6 +225,24 @@ module Parsing =
             let exp = IndexExpression(curToken, left, parseExpression LOWEST)
             if expectPeek RBRACKET then exp :> Expression else nilExpression
 
+        let parseHashLiteral() : Expression =
+            let ct = curToken                            
+            let rec parsePairs(map: HashPairs): (bool*HashPairs) =
+                if peekTokenIs RBRACE then (true, map)
+                else 
+                    nextToken()
+                    let key = parseExpression LOWEST
+                    if expectPeek COLON then
+                        nextToken()
+                        let value = parseExpression LOWEST
+                        if peekTokenIs RBRACE || expectPeek COMMA then parsePairs(map.Add (key,value)) else (false, map)
+                    else
+                        (false, map)
+                
+            match parsePairs Map.empty with
+            | (true, pairs) -> if expectPeek RBRACE then HashLiteral(ct, pairs) :> Expression else nilExpression
+            | (false, _) -> nilExpression                            
+
 
         do parseIdentifier        |> registerPrefix [IDENT]
         do parseIntegerLiteral    |> registerPrefix [INT]
@@ -236,6 +256,7 @@ module Parsing =
         do parseStringLiteral     |> registerPrefix [STRING]
         do parseArrayLiteral      |> registerPrefix [LBRACKET]
         do parseIndexExpression   |> registerInfix  [LBRACKET]
+        do parseHashLiteral       |> registerPrefix [LBRACE]
                                                        
         member this.Errors = errors
        

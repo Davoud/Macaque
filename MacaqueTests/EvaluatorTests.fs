@@ -243,8 +243,21 @@ open Macaque.Ast
                 let err = t.asInstanceOf<Error> (evaluated, id)
                 err.Message |> should equal errorMsg
             | :? Object as object -> evaluated |> should equal expected
-            | _ -> ()
-        )
+            | _ -> ())
+
+        [|
+            "rest([1, 2, 3])", "[2, 3]";
+            "rest([1])", "[]";
+            "rest([])", "[]";
+            "push([], 1)", "[1]";
+            "push([1], 2)", "[1, 2]";
+            "push([1, 2, 3], 10)", "[1, 2, 3, 10]";
+            "push([1, 2], [5])", "[1, 2, [5]]";
+            "push([1])", "ERROR: wrong number of arguments. got=1, want=2";
+            "push()", "ERROR: wrong number of arguments. got=0, want=2";
+            "push(12, [13])", "ERROR: argument to `push` must be ARRAY, got INTEGER";
+        |]
+        |> Seq.iter (fun (input, expected) -> (t.testEval input).Inspect() |> should equal expected)
 
     [<Test>]
     member t.TestArrayLiterals() =        
