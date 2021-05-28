@@ -62,13 +62,17 @@ module rec Evaluator =
              | :? Array as arr -> Array(Array.append arr.Elements [| args.[1] |]) :> Object
              | other -> (sprintf "argument to `push` must be ARRAY, got %O" other.Type) |> newError                     
 
+    let puts (args: Object array): Object =
+        args |> Seq.iter(fun arg -> printfn "%s" (arg.Inspect()))
+        NULL
 
     let builtIns = Map [ 
         nameof len,   Builtin(len); 
         nameof first, Builtin(first);
         nameof last,  Builtin(last);
         nameof rest,  Builtin(rest);
-        nameof push,  Builtin(push); ]
+        nameof push,  Builtin(push);
+        nameof puts,  Builtin(puts)]
          
     let (|IsError|_|) (object: Object) = if object.Type = ERROR then Some(object) else None
 
@@ -236,10 +240,34 @@ module rec Evaluator =
         let idx = int index.Value
         if idx < 0 || idx > max then NULL else array.Elements.[idx]
         
+    let evalHashIndexExpression (hash: Hash) (index: Object): Object = 
+        match index with 
+        | :? Hashable as hashObject -> hashObject.HashKey |> hash.Pairs.TryFind |> function | Some(pair) -> pair.value | None -> NULL            
+        | _ -> sprintf "unusable as hash key: %O" index.Type |> newError
+        
     let evalIndexExpression (left: Object) (index: Object): Object =
         match left.Type, index.Type with 
         | ARRAY, INTEGER -> evalArrayIndexExpression (left :?> Array) (index :?> Integer)
-        | _ -> newError(sprintf "index operator not supported: %O" left.Type)
+        | HASH, _        -> evalHashIndexExpression (left :?> Hash) (index)
+        | _              -> newError(sprintf "index operator not supported: %O" left.Type)
+
+    let evalHashLiteral (node: HashLiteral) (env: Environment): Object =        
+        
+        let rec evalPairs (hash: Hash) (pairs: (Expression*Expression) list) : EObject = 
+            match pairs with 
+            | (keyNode,valueNode) :: tail -> 
+                match evale keyNode env with
+                | Err failedKey -> Err failedKey
+                | Ok key -> match key with 
+                            | :? Hashable as hashKey -> match evale valueNode env with
+                                                        | Err failedValue -> Err failedValue
+                                                        | Ok value -> evalPairs (hash.Append hashKey key value) tail
+                            | _ -> sprintf "unusable as hash key: %O" key.Type |> newError |> Err
+            | [] -> Ok hash            
+        
+        evalPairs (Hash()) (Map.toList node.Pairs) |> function Ok hash -> hash | Err err -> err
+        
+     
 
     let rec eval (node: Node) (env: Environment): Object = 
       match node with
@@ -292,6 +320,8 @@ module rec Evaluator =
                 match evale indexExp.Index env with
                 | Err err -> err
                 | Ok index -> evalIndexExpression left index
-                 
+            
+      | :? HashLiteral as hashLiteral -> evalHashLiteral hashLiteral env
+            
       | _ -> NULL
         

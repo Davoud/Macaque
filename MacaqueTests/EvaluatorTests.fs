@@ -12,7 +12,7 @@ open Macaque.Ast
  [<TestFixture>]    
  type EvaluatorTests() =
                
-    let back2double (s: string) = s.Replace('`', '"')
+    let quote (s: string) = s.Replace('`', '"')
 
     member _.asInstanceOf<'T>(o: obj): 'T = o |> should be instanceOfType<'T>; o :?> 'T
 
@@ -141,6 +141,7 @@ open Macaque.Ast
             8, "foobar", "identifier not found: foobar";
             9, "5 + \"abc\"", "type mismatch: INTEGER + STRING";
             10, """ -"abc" """, "unknown operator: -STRING";
+            11, quote "{`name`: `Monkey`}[fn(x) { x }];", "unusable as hash key: FUNCTION"
         |]
         |> Seq.iter (fun (id, input, expectedMessage) -> 
             let evaluated = input |> t.testEval
@@ -205,7 +206,7 @@ open Macaque.Ast
             " `a` + `b` + `c`   ", "abc";
             " `a` + (`b` + `c`) ", "abc";
         |]
-        |> Seq.iter (fun (input, expected) -> t.testStringObject (t.testEval (back2double input)) expected)
+        |> Seq.iter (fun (input, expected) -> t.testStringObject (t.testEval (quote input)) expected)
 
         [|
             " `a` == `b`; ", false;
@@ -213,7 +214,7 @@ open Macaque.Ast
             " `abc` != `abc`; ", false;
             " `abc` != `cba`; ", true;
         |]
-        |> Seq.iter (fun (input, expected) -> t.testBooleanObject (t.testEval (back2double input)) expected)
+        |> Seq.iter (fun (input, expected) -> t.testBooleanObject (t.testEval (quote input)) expected)
 
     
 
@@ -236,7 +237,7 @@ open Macaque.Ast
             14, "last([])", NULL :> obj;
         |]
         |> Seq.iter (fun (id, input, expected) -> 
-            let evaluated = t.testEval (back2double input)
+            let evaluated = t.testEval (quote input)
             match expected with
             | :? int64 as i -> t.testIntegerObjectWithId evaluated (i, id)
             | :? string as errorMsg -> 
@@ -287,3 +288,53 @@ open Macaque.Ast
             "[1, 2, 3][-1]", NULL;
         |]
         |> Seq.iter (fun (input, expected) -> (t.testEval input) |> should equal expected)
+
+    [<Test>]
+    member t.TestHashLiterals() =
+        let input = "
+            let two = `two`;
+            {
+                `one`: 10 - 9,
+                 two: 1 + 1,
+                 `thr` + `ee`: 6 / 2,
+                 4: 4,
+                 true: 5,
+                  false: 6
+            }"
+
+        let evaluated = t.testEval (quote input)
+        let result = t.asInstanceOf<Hash> evaluated
+
+        let expected = Map [
+            (``String``("one")   :> Hashable).HashKey, 1L;
+            (``String``("two")   :> Hashable).HashKey, 2L;
+            (``String``("three") :> Hashable).HashKey, 3L;
+            (Integer(4L)         :> Hashable).HashKey, 4L;
+            (TRUE  :?> Boolean   :> Hashable).HashKey, 5L;
+            (FALSE :?> Boolean   :> Hashable).HashKey, 6L]
+
+        result.Pairs.Count |> should equal expected.Count
+       
+        expected |> Map.iter (fun key value -> 
+            match result.Pairs.TryFind key with
+            | Some(pair) -> t.testIntegerObject pair.value value
+            | None -> failwith "no pair for given key in Pairs")
+
+    [<Test>]
+    member t.TestHashIndexExpression() =
+        let value = 5L :> obj;
+        let nil = NULL :> obj;
+        [|
+            1, "{`foo`: 5}[`foo`]",  value;
+            2, "{`foo`: 5}[`bar`]",  nil;
+            3, "let key = `foo`; {`foo`: 5}[key]", value;
+            4, "{}[`foo`]", nil;
+            5, "{5: 5}[5]", value;
+            6, "{true: 5}[true]", value;
+            7, "{false: 5}[false]", value;
+        |]
+        |> Seq.iter (fun (id, input, expected) -> 
+            let evaluted = t.testEval (quote input)
+            match expected with
+            | :? int64 as v -> t.testIntegerObjectWithId evaluted (v, id)
+            | _ -> (evaluted,id) |> should equal (nil,id))

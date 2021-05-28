@@ -5,10 +5,12 @@
 
  module Objects =
     
-    type ObjectType = INTEGER | BOOLEAN | NULL | RETURN_VALUE | ERROR | FUNCTION | STRING | BUILTIN | ARRAY
+    type ObjectType = INTEGER | BOOLEAN | NULL | RETURN_VALUE | ERROR | FUNCTION | STRING | BUILTIN | ARRAY | HASH
         
     type HashKey = { Type: ObjectType; Value: uint64 }
         
+    type Hashable =        
+        abstract member HashKey: HashKey
 
     type Object =
         abstract member Type: ObjectType
@@ -16,26 +18,34 @@
 
     type BuiltinFunction = Object array -> Object
 
+    type HashPair = { key: Object; value: Object }
+
     type Integer(value: int64) =
+        let hashKey = { Type = INTEGER; Value = uint64 (value) }  
         member self.Value = value
-        member self.HashKey = { Type = INTEGER; Value = uint64 (value) }  
         interface Object with   
             member self.Type = INTEGER
             member self.Inspect() = sprintf "%d" value
+        interface Hashable with
+            member self.HashKey = hashKey           
 
     type ``String``(value: string) =
+        let hashKey = { Type = STRING; Value = uint64 (value.GetHashCode()) }            
         member self.Value = value
-        member self.HashKey = { Type = STRING; Value = uint64 (value.GetHashCode()) }            
         interface Object with
             member self.Type = STRING
             member self.Inspect() = value
+        interface Hashable with
+            member self.HashKey = hashKey            
 
     type Boolean(value: bool) =
+        let hashKey = { Type = BOOLEAN; Value = if value then 1UL else 0UL }
         member self.Value = value
-        member self.HashKey = { Type = BOOLEAN; Value = uint64 (if value then 1 else 0)}
         interface Object with 
             member self.Type = BOOLEAN
             member self.Inspect() = sprintf "%b" value
+        interface Hashable with
+            member self.HashKey = hashKey            
    
     type Null =
       struct
@@ -87,4 +97,18 @@
         member self.Elements = elements
         interface Object with
             member self.Type = ARRAY
-            member self.Inspect() = sprintf "[%s]" (elements |> Seq.map (fun el -> el.Inspect()) |> String.concat ", ")
+            member self.Inspect() = elements |> Seq.map (fun el -> el.Inspect()) |> String.concat ", " |> sprintf "[%s]"
+
+    type Hash(pairs: Map<HashKey,HashPair>) =
+        new() = Hash(Map.empty)
+        member selt.Pairs = pairs        
+        member self.Append (hashable: Hashable) (key: Object) (value: Object) = 
+            Hash(pairs.Add(hashable.HashKey, {key = key; value = value}))
+        
+        interface Object with
+            member self.Type = HASH
+            member self.Inspect() = 
+                pairs |> Seq.map(fun i -> sprintf "%s: %s" (i.Value.key.Inspect()) (i.Value.value.Inspect()))
+                      |> String.concat ", " 
+                      |> sprintf "{%s}" 
+               
