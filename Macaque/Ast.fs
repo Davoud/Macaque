@@ -25,7 +25,7 @@ module Ast =
     override this.ToString() = (this :> Node).String()
     interface Node with 
         member this.TokenLiteral() = match statements with head :: _ -> head.TokenLiteral() | [] -> ""    
-        member this.String() = statements |> List.map (fun s -> $"{s}") |> String.concat ""        
+        member this.String() = statements |> List.map (sprintf "%O") |> String.concat ""        
  
  type Identifier (token: Token, value: string) =   
     member this.Token = token
@@ -203,7 +203,7 @@ module Ast =
     member this.Token = token
     member this.Left = left
     member this.Index = index
-    override this.ToString() = (this :> Expression).ToString()
+    override this.ToString() = (this :> Expression).String()
     interface Expression with
         member this.TokenLiteral() = this.Token.Literal
         member this.String() = sprintf "(%O[%O])" left index

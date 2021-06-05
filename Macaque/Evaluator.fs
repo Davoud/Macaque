@@ -15,7 +15,9 @@ module rec Evaluator =
     let FALSE = Boolean(false) :> Object
     
     let inline newError message = Error(message) :> Object
-    
+            
+    let inline inspect (o: Object) = o.Inspect()
+
     let inline exactlyOne (args: Object array): EObject =
         match args with
         | [| arg |] -> arg |> Ok
@@ -62,8 +64,8 @@ module rec Evaluator =
              | :? Array as arr -> Array(Array.append arr.Elements [| args.[1] |]) :> Object
              | other -> (sprintf "argument to `push` must be ARRAY, got %O" other.Type) |> newError                     
 
-    let puts (args: Object array): Object =
-        args |> Seq.iter(fun arg -> printfn "%s" (arg.Inspect()))
+    let puts (args: Object array): Object =      
+        args |> Seq.iter(inspect >> printfn "%s")      
         NULL
 
     let builtIns = Map [ 

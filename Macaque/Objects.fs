@@ -15,7 +15,7 @@
     type Object =
         abstract member Type: ObjectType
         abstract member Inspect: unit -> string
-
+  
     type BuiltinFunction = Object array -> Object
 
     type HashPair = { key: Object; value: Object }

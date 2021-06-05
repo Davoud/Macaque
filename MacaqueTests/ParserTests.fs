@@ -24,8 +24,15 @@ open Macaque.Parsing
     let program = parser.ParseProgram()
     printErrors parser.Errors    
     if expectedNumStatments > 0 then program.Statements.Length |> should equal expectedNumStatments    
-    program
-  
+    program  
+
+  let parseStr (input: string) (expectedNumStatments: int): string =
+      let parser = Parser(Lexer input)
+      let program = parser.ParseProgram()
+      printErrors parser.Errors    
+      if expectedNumStatments > 0 then program.Statements.Length |> should equal expectedNumStatments    
+      sprintf "%O" program
+
   member _.asInstanceOf<'T>(o: obj): 'T =
     o |> should be instanceOfType<'T>
     o :?> 'T
@@ -192,7 +199,7 @@ open Macaque.Parsing
     
   [<Test>]
   member t.TestOperatorPrecedenceParsing() =        
-        [| 
+         [| 
            "-a * b",    "((-a) * b)";
            
            "!-a",       "(!(-a))";
@@ -234,21 +241,21 @@ open Macaque.Parsing
            "2 / (5 + 5)", "(2 / (5 + 5))";
 
            "-(5 + 5)", "(-(5 + 5))";
+                     
+            "!(true == true)", "(!(true == true))";
+            
+            "a + add(b * c) + d", "((a + add((b * c))) + d)";
+            
+            "add(a, b, 1, 2 * 3, 4 + 5, add(6, 7 * 8))", "add(a, b, 1, (2 * 3), (4 + 5), add(6, (7 * 8)))";
+            
+            "add(a + b + c * d / f + g)", "add((((a + b) + ((c * d) / f)) + g))";
 
-           "!(true == true)", "(!(true == true))";
-           
-           "a + add(b * c) + d", "((a + add((b * c))) + d)";
-           
-           "add(a, b, 1, 2 * 3, 4 + 5, add(6, 7 * 8))", "add(a, b, 1, (2 * 3), (4 + 5), add(6, (7 * 8)))";
-           
-           "add(a + b + c * d / f + g)", "add((((a + b) + ((c * d) / f)) + g))";
+            "a * [1, 2, 3, 4][b * c] * d", "((a * ([1, 2, 3, 4][(b * c)])) * d)";
 
-           "a * [1, 2, 3, 4][b * c] * d", "((a * ([1, 2, 3, 4][(b * c)])) * d)";
-
-           "add(a * b[2], b[1], 2 * [1, 2][1])", "add((a * (b[2])), (b[1]), (2 * ([1, 2][1])))";
-           
-        |]
-        |> Array.iter (fun (input, exprected) -> (parse input -1).ToString() |> should equal exprected)
+            "add(a * b[2], b[1], 2 * [1, 2][1])", "add((a * (b[2])), (b[1]), (2 * ([1, 2][1])))";
+         |]
+         |> Array.iter (fun (input, exprected) -> (parseStr input -1) |> should equal exprected)
+                       
 
   [<Test>]
   member t.TestIfExpression() =

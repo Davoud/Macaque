@@ -5,6 +5,7 @@ open Macaque
 open Macaque.Parsing
 open Macaque.Evaluator
 
+
 module Repl =
     
     let prompt() = printf ">> "      
@@ -33,9 +34,7 @@ module Repl =
             printfn ""
               
         Console.ForegroundColor <- ConsoleColor.Yellow
-        (eval program env) |> function 
-        | result when result = NULL -> () 
-        | result -> printfn "\n%s\n" (result.Inspect())
+        (eval program env) |> (inspect >> printfn "\n%s\n") 
                                    
     let load fileName = 
         try 
